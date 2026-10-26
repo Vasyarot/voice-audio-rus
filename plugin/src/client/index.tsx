@@ -117,6 +117,25 @@ function useSpeechCatalog(ctx: any) {
   return { catalog, error, refresh }
 }
 
+function cloudStatusText(provider: ProviderInfo): string {
+  const phase = provider.preparation?.phase ?? 'unprepared'
+  if (phase === 'ready') return 'готов'
+  if (phase === 'checking' || phase === 'loading' || phase === 'waking') return 'проверка…'
+  if (phase === 'failed') {
+    const message = provider.preparation?.message ?? ''
+    if (/401|403|отклон/iu.test(message)) return 'ключ отклонён'
+    if (/настроен|base\s?url|модел/iu.test(message)) return 'не настроен'
+    if (/соедин|сет|dns|timeout|таймаут/iu.test(message)) return 'нет соединения'
+    return `ошибка: ${message.slice(0, 60)}`
+  }
+  return 'не проверен'
+}
+
+function statusFor(provider?: ProviderInfo): string {
+  if (!provider) return 'нет провайдера'
+  return provider.location === 'cloud' ? cloudStatusText(provider) : phaseText(provider)
+}
+
 function providerLabel(provider: ProviderInfo): string {
   if (provider.name && provider.name.trim() !== '') return provider.name
   if (provider.location === 'host-local') return 'Локально · встроенный движок'
@@ -975,6 +994,15 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
     await prepare(id)
   }
 
+  const prepareAll = async () => {
+    const locals = (catalog?.providers ?? []).filter((item) => item.location === 'host-local')
+    for (const provider of locals) {
+      if (provider.preparation?.phase === 'ready') continue
+      await ctx.remote.speech.prepare(provider.id, undefined)
+    }
+    await refresh()
+  }
+
   const [cloudForm, setCloudForm] = useState({ baseURL: '', model: '', apiKeyEnv: '' })
   const [cloudRevision, setCloudRevision] = useState<number | null>(null)
   const [keyValue, setKeyValue] = useState('')
@@ -1107,6 +1135,23 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
     void prepare(selectedProvider.id)
   }, [selectedProvider, prepare])
 
+  // Cloud health: probe automatically when the settings page opens with the cloud
+  // provider selected (or right after it is selected).
+  const probingRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!selectedProvider || selectedProvider.location !== 'cloud') return
+    if ((selectedProvider.preparation?.phase ?? 'unprepared') !== 'unprepared') return
+    if (probingRef.current === selectedProvider.id) return
+    probingRef.current = selectedProvider.id
+    void ctx.remote.speech
+      .prepare(selectedProvider.id, undefined)
+      .catch(() => {})
+      .finally(() => {
+        probingRef.current = null
+        void refresh()
+      })
+  }, [selectedProvider?.id, selectedProvider?.preparation?.phase, refresh, ctx])
+
   const update = (recipe: (current: Settings) => Settings) => updateSettings(recipe)
   const noiseReductionOn = settings.rnnoise.enabled && settings.gate.enabled && settings.highpass.enabled
   const toggleNoiseReduction = (enabled: boolean) =>
@@ -1122,18 +1167,21 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
   return (
     <div className="vs-root vs-card">
       <details className="vs-section" open>
-        <summary><h4>Модель распознавания</h4></summary>
+        <summary><h4>Модели распознавания речи</h4></summary>
         {error ? <p className="vs-error">{error}</p> : null}
         {selectedProvider ? (
           <>
             <div className="vs-line">
               <label>
                 {providerLabel(selectedProvider)}
-                <div className="vs-hint">Статус: {phaseText(selectedProvider)}</div>
+                <div className="vs-hint">Статус: {statusFor(selectedProvider)}</div>
               </label>
               <span className="vs-controls">
                 <button type="button" className="vs-btn" data-kind="primary" disabled={busy} onClick={() => void prepareSelected()}>
                   Скачать / подготовить
+                </button>
+                <button type="button" className="vs-btn" onClick={() => void prepareAll()}>
+                  Скачать все модели
                 </button>
                 <button type="button" className="vs-btn" onClick={() => void refresh()}>
                   Обновить
@@ -1147,8 +1195,158 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         ) : (
           <p className="vs-hint">Каталог провайдеров ещё не загружен…</p>
         )}
+      
+        {error ? <p className="vs-error">{error}</p> : null}
+        <Row label="Провайдер" hint={selectedProvider ? `Статус: ${phaseText(selectedProvider)}` : 'Список недоступен'}>
+          <select
+            className="vs-select"
+            value={settings.providerId || catalog?.selection.providerId || ''}
+            onChange={(event) => {
+              const providerId = event.target.value
+              const provider = providers.find((item) => item.id === providerId)
+              const language =
+                provider && !provider.languages.includes(settings.language)
+                  ? provider.languages.includes('ru')
+                    ? 'ru'
+                    : provider.languages[0] ?? 'auto'
+                  : settings.language
+              update((current) => ({ ...current, providerId, language }))
+              void configure({ providerId, language })
+            }}
+          >
+            {providers.map((item) => (
+              <option key={item.id} value={item.id}>
+                {providerLabel(item)} — {statusFor(item)}
+              </option>
+            ))}
+          </select>
+        </Row>
+        <Row
+          label="Язык"
+          hint={
+            selectedProvider && !selectedProvider.languages.includes(settings.language)
+              ? `Провайдер не поддерживает «${languageLabel(settings.language)}»`
+              : undefined
+          }
+        >
+          <select
+            className="vs-select"
+            value={settings.language}
+            onChange={(event) => {
+              const language = event.target.value
+              update((current) => ({ ...current, language }))
+              void configure({ language })
+            }}
+          >
+            {(selectedProvider?.languages ?? catalog?.providers.flatMap((item) => item.languages) ?? ['auto']).map((code) => (
+              <option key={code} value={code}>
+                {languageLabel(code)}
+              </option>
+            ))}
+          </select>
+        </Row>
+        <div className="vs-controls">
+          <button
+            type="button"
+            className="vs-btn"
+            disabled={busy || !selectedProvider}
+            onClick={() => selectedProvider && void prepare(selectedProvider.id)}
+          >
+            Подготовить модель
+          </button>
+          <button type="button" className="vs-btn" onClick={() => void refresh()}>
+            Обновить статус
+          </button>
+        </div>
+        <p className="vs-hint">
+          Локальные движки — Whisper (ONNX на CPU через sherpa-onnx, входит в DSH). Русский поддерживается.
+          Модель скачивается один раз кнопкой «Подготовить модель»: tiny ≈ 100 МБ (быстро), base ≈ 155 МБ,
+          small ≈ 360 МБ (точнее). Для максимального качества можно выбрать облачный провайдер.
+        </p>
       </details>
-      <details className="vs-section" open>
+<details className="vs-section">
+        <summary><h4>Сравнение моделей</h4></summary>
+        <p className="vs-hint">
+          Запишите одну фразу — её распознают все готовые провайдеры независимо. Так видно, кто как слышит,
+          насколько быстро отвечает и где ошибается.
+        </p>
+        <div className="vs-controls">
+          <button
+            type="button"
+            className="vs-btn"
+            data-kind="primary"
+            disabled={compareState === 'running'}
+            onClick={() => {
+              if (compareState === 'recording') void stopCompare()
+              else if (compareState === 'idle') void startCompare()
+            }}
+          >
+            {compareState === 'recording' ? 'Остановить и сравнить' : compareState === 'running' ? 'Распознавание…' : 'Записать тест'}
+          </button>
+          {compareResults.length > 0 ? (
+            <button type="button" className="vs-btn" onClick={() => setCompareResults([])}>
+              Очистить
+            </button>
+          ) : null}
+        </div>
+        {compareResults.map((item) => (
+          <div className="vs-history-item" key={item.id}>
+            <div className="vs-history-meta">
+              <strong>{item.name}</strong>
+              <span className="vs-badge">{item.ms !== undefined ? `${item.ms} мс` : '—'}</span>
+            </div>
+            {item.text !== undefined ? <p>{item.text || '∅ (пусто)'}</p> : <p className="vs-error">{item.error ?? 'ошибка'}</p>}
+          </div>
+        ))}
+      </details>
+<details className="vs-section">
+        <summary><h4>История диктовок</h4></summary>
+        {history.length === 0 ? <p className="vs-hint">Пока пусто.</p> : null}
+        <div className="vs-history">
+          {history.map((entry) => (
+            <div className="vs-history-item" key={entry.id}>
+              <p>{entry.text}</p>
+              <div className="vs-history-meta">
+                <span>{new Date(entry.createdAt).toLocaleString()}</span>
+                <span className="vs-badge">{Math.round(entry.seconds)} с</span>
+                {entry.language ? <span className="vs-badge">{languageLabel(entry.language)}</span> : null}
+                <span style={{ flex: 1 }} />
+                <button
+                  type="button"
+                  className="vs-link"
+                  onClick={() => {
+                    if (activeDraft) activeDraft.insertText(entry.text)
+                    else void navigator.clipboard?.writeText(entry.text).catch(() => {})
+                  }}
+                >
+                  Вставить
+                </button>
+                <button type="button" className="vs-link" onClick={() => void navigator.clipboard?.writeText(entry.text).catch(() => {})}>
+                  Копировать
+                </button>
+                <button type="button" className="vs-link" onClick={() => removeHistory(entry.id)}>
+                  Удалить
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="vs-controls">
+          <button type="button" className="vs-btn" onClick={() => exportHistory('md')} disabled={history.length === 0}>
+            Экспорт .md
+          </button>
+          <button type="button" className="vs-btn" onClick={() => exportHistory('txt')} disabled={history.length === 0}>
+            Экспорт .txt
+          </button>
+          <button type="button" className="vs-btn" onClick={() => exportHistory('json')} disabled={history.length === 0}>
+            Экспорт .json
+          </button>
+          <button type="button" className="vs-btn" onClick={() => clearHistory()} disabled={history.length === 0}>
+            Очистить
+          </button>
+        </div>
+      </details>
+<details className="vs-section" open>
         <summary><h4>Микрофон</h4></summary>
         <Row
           label="Устройство ввода"
@@ -1194,7 +1392,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           }
         />
       </details>
-      <details className="vs-section">
+<details className="vs-section">
         <summary><h4>Шумоподавление</h4></summary>
         <Row
           label="Шумоподавление"
@@ -1229,8 +1427,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           />
         </Row>
       </details>
-
-      <details className="vs-section">
+<details className="vs-section">
         <summary><h4>Обработка звука</h4></summary>
         <Row label="RNNoise" hint="Нейросетевое шумоподавление Xiph в WebAssembly. Работает локально.">
           <Check checked={settings.rnnoise.enabled} onChange={(value) => update((current) => ({ ...current, rnnoise: { ...current.rnnoise, enabled: value } }))} />
@@ -1310,55 +1507,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           <Check checked={settings.limiter} onChange={(value) => update((current) => ({ ...current, limiter: value }))} />
         </Row>
       </details>
-
-      <details className="vs-section">
-        <summary><h4>Тишина и горячие клавиши</h4></summary>
-        <Row label="Авто-стоп по тишине" hint="Завершает запись, когда вы замолчали.">
-          <Check checked={settings.vad.autoStop} onChange={(value) => update((current) => ({ ...current, vad: { ...current.vad, autoStop: value } }))} />
-        </Row>
-        <Row label="Пауза до остановки">
-          <Slider
-            value={settings.vad.silenceMs}
-            min={400}
-            max={5000}
-            step={100}
-            unit=" мс"
-            onChange={(value) => update((current) => ({ ...current, vad: { ...current.vad, silenceMs: value } }))}
-          />
-        </Row>
-        <Row label="Порог тишины">
-          <Slider
-            value={settings.vad.thresholdDb}
-            min={-70}
-            max={-20}
-            unit=" дБ"
-            onChange={(value) => update((current) => ({ ...current, vad: { ...current.vad, thresholdDb: value } }))}
-          />
-        </Row>
-        <Row label="Push-to-talk" hint="Запись по удержанию сочетания клавиш.">
-          <Check checked={settings.ptt.enabled} onChange={(value) => update((current) => ({ ...current, ptt: { ...current.ptt, enabled: value } }))} />
-        </Row>
-        <Row label="Сочетание">
-          <ComboField
-            value={settings.ptt.combo}
-            onChange={(value) => update((current) => ({ ...current, ptt: { ...current.ptt, combo: value } }))}
-          />
-        </Row>
-        <Row label="Режим">
-          <select
-            className="vs-select"
-            value={settings.ptt.mode}
-            onChange={(event) =>
-              update((current) => ({ ...current, ptt: { ...current.ptt, mode: event.target.value === 'toggle' ? 'toggle' : 'hold' } }))
-            }
-          >
-            <option value="hold">Удержание</option>
-            <option value="toggle">Переключение</option>
-          </select>
-        </Row>
-      </details>
-
-      <details className="vs-section">
+<details className="vs-section">
         <summary><h4>Текст</h4></summary>
         <Row label="Авто-пунктуация" hint="Заглавные буквы и точка в конце.">
           <Check
@@ -1437,79 +1586,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           </div>
         </div>
       </details>
-
-      <details className="vs-section">
-        <summary><h4>Распознавание</h4></summary>
-        {error ? <p className="vs-error">{error}</p> : null}
-        <Row label="Провайдер" hint={selectedProvider ? `Статус: ${phaseText(selectedProvider)}` : 'Список недоступен'}>
-          <select
-            className="vs-select"
-            value={settings.providerId || catalog?.selection.providerId || ''}
-            onChange={(event) => {
-              const providerId = event.target.value
-              const provider = providers.find((item) => item.id === providerId)
-              const language =
-                provider && !provider.languages.includes(settings.language)
-                  ? provider.languages.includes('ru')
-                    ? 'ru'
-                    : provider.languages[0] ?? 'auto'
-                  : settings.language
-              update((current) => ({ ...current, providerId, language }))
-              void configure({ providerId, language })
-            }}
-          >
-            {providers.map((item) => (
-              <option key={item.id} value={item.id}>
-                {providerLabel(item)} — {phaseText(item)}
-              </option>
-            ))}
-          </select>
-        </Row>
-        <Row
-          label="Язык"
-          hint={
-            selectedProvider && !selectedProvider.languages.includes(settings.language)
-              ? `Провайдер не поддерживает «${languageLabel(settings.language)}»`
-              : undefined
-          }
-        >
-          <select
-            className="vs-select"
-            value={settings.language}
-            onChange={(event) => {
-              const language = event.target.value
-              update((current) => ({ ...current, language }))
-              void configure({ language })
-            }}
-          >
-            {(selectedProvider?.languages ?? catalog?.providers.flatMap((item) => item.languages) ?? ['auto']).map((code) => (
-              <option key={code} value={code}>
-                {languageLabel(code)}
-              </option>
-            ))}
-          </select>
-        </Row>
-        <div className="vs-controls">
-          <button
-            type="button"
-            className="vs-btn"
-            disabled={busy || !selectedProvider}
-            onClick={() => selectedProvider && void prepare(selectedProvider.id)}
-          >
-            Подготовить модель
-          </button>
-          <button type="button" className="vs-btn" onClick={() => void refresh()}>
-            Обновить статус
-          </button>
-        </div>
-        <p className="vs-hint">
-          Локальные движки — Whisper (ONNX на CPU через sherpa-onnx, входит в DSH). Русский поддерживается.
-          Модель скачивается один раз кнопкой «Подготовить модель»: tiny ≈ 100 МБ (быстро), base ≈ 155 МБ,
-          small ≈ 360 МБ (точнее). Для максимального качества можно выбрать облачный провайдер.
-        </p>
-      </details>
-
-      <details className="vs-section">
+<details className="vs-section">
         <summary><h4>Облачный провайдер</h4></summary>
         <p className="vs-hint">
           OpenAI-совместимый API: можно указать свой сервер, модель и ссылку на ключ. Ключ хранится в защищённом
@@ -1559,97 +1636,11 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         </Row>
         {cloudNotice ? <p className="vs-hint">{cloudNotice}</p> : null}
       </details>
-      <details className="vs-section">
-        <summary><h4>Сравнение распознавания</h4></summary>
-        <p className="vs-hint">
-          Запишите одну фразу — её распознают все готовые провайдеры независимо. Так видно, кто как слышит,
-          насколько быстро отвечает и где ошибается.
-        </p>
-        <div className="vs-controls">
-          <button
-            type="button"
-            className="vs-btn"
-            data-kind="primary"
-            disabled={compareState === 'running'}
-            onClick={() => {
-              if (compareState === 'recording') void stopCompare()
-              else if (compareState === 'idle') void startCompare()
-            }}
-          >
-            {compareState === 'recording' ? 'Остановить и сравнить' : compareState === 'running' ? 'Распознавание…' : 'Записать тест'}
-          </button>
-          {compareResults.length > 0 ? (
-            <button type="button" className="vs-btn" onClick={() => setCompareResults([])}>
-              Очистить
-            </button>
-          ) : null}
-        </div>
-        {compareResults.map((item) => (
-          <div className="vs-history-item" key={item.id}>
-            <div className="vs-history-meta">
-              <strong>{item.name}</strong>
-              <span className="vs-badge">{item.ms !== undefined ? `${item.ms} мс` : '—'}</span>
-            </div>
-            {item.text !== undefined ? <p>{item.text || '∅ (пусто)'}</p> : <p className="vs-error">{item.error ?? 'ошибка'}</p>}
-          </div>
-        ))}
-      </details>
-      <details className="vs-section">
-        <summary><h4>История диктовок</h4></summary>
-        {history.length === 0 ? <p className="vs-hint">Пока пусто.</p> : null}
-        <div className="vs-history">
-          {history.map((entry) => (
-            <div className="vs-history-item" key={entry.id}>
-              <p>{entry.text}</p>
-              <div className="vs-history-meta">
-                <span>{new Date(entry.createdAt).toLocaleString()}</span>
-                <span className="vs-badge">{Math.round(entry.seconds)} с</span>
-                {entry.language ? <span className="vs-badge">{languageLabel(entry.language)}</span> : null}
-                <span style={{ flex: 1 }} />
-                <button
-                  type="button"
-                  className="vs-link"
-                  onClick={() => {
-                    if (activeDraft) activeDraft.insertText(entry.text)
-                    else void navigator.clipboard?.writeText(entry.text).catch(() => {})
-                  }}
-                >
-                  Вставить
-                </button>
-                <button type="button" className="vs-link" onClick={() => void navigator.clipboard?.writeText(entry.text).catch(() => {})}>
-                  Копировать
-                </button>
-                <button type="button" className="vs-link" onClick={() => removeHistory(entry.id)}>
-                  Удалить
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="vs-controls">
-          <button type="button" className="vs-btn" onClick={() => exportHistory('md')} disabled={history.length === 0}>
-            Экспорт .md
-          </button>
-          <button type="button" className="vs-btn" onClick={() => exportHistory('txt')} disabled={history.length === 0}>
-            Экспорт .txt
-          </button>
-          <button type="button" className="vs-btn" onClick={() => exportHistory('json')} disabled={history.length === 0}>
-            Экспорт .json
-          </button>
-          <button type="button" className="vs-btn" onClick={() => clearHistory()} disabled={history.length === 0}>
-            Очистить
-          </button>
-        </div>
-      </details>
-
-      <details className="vs-section" open>
-        <summary><h4>Сброс</h4></summary>
-        <div className="vs-controls">
-          <button type="button" className="vs-btn" data-kind="danger" onClick={() => resetSettings()}>
-            Вернуть настройки по умолчанию
-          </button>
-        </div>
-      </details>
+      <div className="vs-footer-action">
+        <button type="button" className="vs-btn" data-kind="danger" onClick={() => resetSettings()}>
+          Вернуть настройки по умолчанию
+        </button>
+      </div>
     </div>
   )
 }

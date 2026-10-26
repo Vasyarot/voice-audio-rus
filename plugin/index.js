@@ -120,12 +120,61 @@ async function resolveApiKey(ctx, ref) {
 /** OpenAI-compatible `/audio/transcriptions` provider, reading live settings. */
 export function createProvider(config, ctx) {
   let lastKeyError = ''
+  const listeners = new Set()
+  let health = { phase: 'unprepared' }
+  const setHealth = (next) => {
+    health = next
+    for (const listener of listeners) listener()
+  }
+  const baseUrlOf = () => String(setting(config, 'baseURL') || '').replace(/\/+$/u, '')
+  const modelOf = () => String(setting(config, 'model') || '')
+
   return {
     info: {
       id: setting(config, 'providerId'),
       name: setting(config, 'title'),
       location: 'cloud',
       languages: setting(config, 'languages'),
+    },
+    preparation: {
+      snapshot: () => health,
+      subscribe(listener) {
+        listeners.add(listener)
+        return () => {
+          listeners.delete(listener)
+        }
+      },
+      async prepare() {
+        const baseURL = baseUrlOf()
+        const model = modelOf()
+        if (baseURL === '' || model === '') {
+          setHealth({ phase: 'failed', message: 'Не настроен: укажите Base URL и модель' })
+          return
+        }
+        const apiKey = await resolveApiKey(ctx, setting(config, 'apiKeyEnv'))
+        if (apiKey === '') {
+          setHealth({ phase: 'failed', message: `Нет ключа: сохраните секрет для ${setting(config, 'apiKeyEnv')}` })
+          return
+        }
+        setHealth({ phase: 'checking', startedAt: Date.now() })
+        try {
+          const response = await fetch(`${baseURL}/models`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(8000),
+          })
+          if (response.status === 401 || response.status === 403) {
+            setHealth({ phase: 'failed', message: `Ключ отклонён (${response.status})` })
+          } else if (response.ok || response.status === 404 || response.status === 405) {
+            // 404/405: сервер не предоставляет /models, но соединение и ключ приняты.
+            setHealth({ phase: 'ready' })
+          } else {
+            setHealth({ phase: 'failed', message: `Сервер ответил ${response.status}` })
+          }
+        } catch (error) {
+          setHealth({ phase: 'failed', message: `Ошибка соединения: ${error instanceof Error ? error.message : String(error)}` })
+        }
+      },
+      async cancel() {},
     },
     async transcribe(input, signal) {
       if (!input || (!(input.audio instanceof Uint8Array) && !Buffer.isBuffer(input.audio))) {

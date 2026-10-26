@@ -1381,6 +1381,23 @@ function useSpeechCatalog(ctx) {
   }, [refresh]);
   return { catalog, error, refresh };
 }
+function cloudStatusText(provider) {
+  const phase = provider.preparation?.phase ?? "unprepared";
+  if (phase === "ready") return "\u0433\u043E\u0442\u043E\u0432";
+  if (phase === "checking" || phase === "loading" || phase === "waking") return "\u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0430\u2026";
+  if (phase === "failed") {
+    const message = provider.preparation?.message ?? "";
+    if (/401|403|отклон/iu.test(message)) return "\u043A\u043B\u044E\u0447 \u043E\u0442\u043A\u043B\u043E\u043D\u0451\u043D";
+    if (/настроен|base\s?url|модел/iu.test(message)) return "\u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D";
+    if (/соедин|сет|dns|timeout|таймаут/iu.test(message)) return "\u043D\u0435\u0442 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F";
+    return `\u043E\u0448\u0438\u0431\u043A\u0430: ${message.slice(0, 60)}`;
+  }
+  return "\u043D\u0435 \u043F\u0440\u043E\u0432\u0435\u0440\u0435\u043D";
+}
+function statusFor(provider) {
+  if (!provider) return "\u043D\u0435\u0442 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430";
+  return provider.location === "cloud" ? cloudStatusText(provider) : phaseText(provider);
+}
 function providerLabel(provider) {
   if (provider.name && provider.name.trim() !== "") return provider.name;
   if (provider.location === "host-local") return "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E \xB7 \u0432\u0441\u0442\u0440\u043E\u0435\u043D\u043D\u044B\u0439 \u0434\u0432\u0438\u0436\u043E\u043A";
@@ -1456,28 +1473,6 @@ function comboMatches(event, combo) {
   if (key === "space") return code === "space";
   if (key.length === 1) return name === key || code === `key${key}`;
   return code === key || name === key;
-}
-function ComboField(props) {
-  const [listening, setListening] = (0, import_react3.useState)(false);
-  (0, import_react3.useEffect)(() => {
-    if (!listening) return;
-    const onKeyDown = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const parts = [];
-      if (event.ctrlKey) parts.push("Ctrl");
-      if (event.altKey) parts.push("Alt");
-      if (event.shiftKey) parts.push("Shift");
-      if (event.metaKey) parts.push("Meta");
-      const key = event.code.startsWith("Key") ? event.code.slice(3) : event.code.startsWith("Digit") ? event.code.slice(5) : event.code === "Space" ? "Space" : event.key.length === 1 ? event.key.toUpperCase() : event.code;
-      parts.push(key);
-      props.onChange(parts.join("+"));
-      setListening(false);
-    };
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [listening, props]);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", disabled: props.disabled, onClick: () => setListening((value) => !value), children: listening ? "\u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u0441\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u0435\u2026" : props.value || "\u041D\u0435 \u0437\u0430\u0434\u0430\u043D\u043E" });
 }
 var activeDraft = null;
 function MicActivity(props) {
@@ -2121,6 +2116,14 @@ function SettingsPage(props) {
     const id = selectedProvider?.id ?? catalog?.selection.providerId ?? "whisper-base";
     await prepare(id);
   };
+  const prepareAll = async () => {
+    const locals = (catalog?.providers ?? []).filter((item) => item.location === "host-local");
+    for (const provider of locals) {
+      if (provider.preparation?.phase === "ready") continue;
+      await ctx.remote.speech.prepare(provider.id, void 0);
+    }
+    await refresh();
+  };
   const [cloudForm, setCloudForm] = (0, import_react3.useState)({ baseURL: "", model: "", apiKeyEnv: "" });
   const [cloudRevision, setCloudRevision] = (0, import_react3.useState)(null);
   const [keyValue, setKeyValue] = (0, import_react3.useState)("");
@@ -2240,6 +2243,18 @@ function SettingsPage(props) {
     autoStarted.current = true;
     void prepare(selectedProvider.id);
   }, [selectedProvider, prepare]);
+  const probingRef = (0, import_react3.useRef)(null);
+  (0, import_react3.useEffect)(() => {
+    if (!selectedProvider || selectedProvider.location !== "cloud") return;
+    if ((selectedProvider.preparation?.phase ?? "unprepared") !== "unprepared") return;
+    if (probingRef.current === selectedProvider.id) return;
+    probingRef.current = selectedProvider.id;
+    void ctx.remote.speech.prepare(selectedProvider.id, void 0).catch(() => {
+    }).finally(() => {
+      probingRef.current = null;
+      void refresh();
+    });
+  }, [selectedProvider?.id, selectedProvider?.preparation?.phase, refresh, ctx]);
   const update = (recipe) => updateSettings(recipe);
   const noiseReductionOn = settings.rnnoise.enabled && settings.gate.enabled && settings.highpass.enabled;
   const toggleNoiseReduction = (enabled) => update((current2) => ({
@@ -2252,7 +2267,7 @@ function SettingsPage(props) {
   }));
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-root vs-card", children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", open: true, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041C\u043E\u0434\u0435\u043B\u044C \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041C\u043E\u0434\u0435\u043B\u0438 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F \u0440\u0435\u0447\u0438" }) }),
       error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-error", children: error }) : null,
       selectedProvider ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-line", children: [
@@ -2260,18 +2275,139 @@ function SettingsPage(props) {
             providerLabel(selectedProvider),
             /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-hint", children: [
               "\u0421\u0442\u0430\u0442\u0443\u0441: ",
-              phaseText(selectedProvider)
+              statusFor(selectedProvider)
             ] })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-controls", children: [
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", "data-kind": "primary", disabled: busy, onClick: () => void prepareSelected(), children: "\u0421\u043A\u0430\u0447\u0430\u0442\u044C / \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C" }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void prepareAll(), children: "\u0421\u043A\u0430\u0447\u0430\u0442\u044C \u0432\u0441\u0435 \u043C\u043E\u0434\u0435\u043B\u0438" }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void refresh(), children: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C" })
           ] })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PreparationProgress, { provider: selectedProvider }),
         actionError ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-error", children: actionError }) : null,
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "tiny \u2248 100 \u041C\u0411 \xB7 base \u2248 155 \u041C\u0411 \xB7 small \u2248 360 \u041C\u0411. \u0421\u043C\u0435\u043D\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C \u2014 \u0432 \u0440\u0430\u0437\u0434\u0435\u043B\u0435 \xAB\u0420\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435\xBB \u043D\u0438\u0436\u0435." })
-      ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041A\u0430\u0442\u0430\u043B\u043E\u0433 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u043E\u0432 \u0435\u0449\u0451 \u043D\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u2026" })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041A\u0430\u0442\u0430\u043B\u043E\u0433 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u043E\u0432 \u0435\u0449\u0451 \u043D\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u2026" }),
+      error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-error", children: error }) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440", hint: selectedProvider ? `\u0421\u0442\u0430\u0442\u0443\u0441: ${phaseText(selectedProvider)}` : "\u0421\u043F\u0438\u0441\u043E\u043A \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "select",
+        {
+          className: "vs-select",
+          value: settings.providerId || catalog?.selection.providerId || "",
+          onChange: (event) => {
+            const providerId = event.target.value;
+            const provider = providers.find((item) => item.id === providerId);
+            const language = provider && !provider.languages.includes(settings.language) ? provider.languages.includes("ru") ? "ru" : provider.languages[0] ?? "auto" : settings.language;
+            update((current2) => ({ ...current2, providerId, language }));
+            void configure({ providerId, language });
+          },
+          children: providers.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("option", { value: item.id, children: [
+            providerLabel(item),
+            " \u2014 ",
+            statusFor(item)
+          ] }, item.id))
+        }
+      ) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        Row,
+        {
+          label: "\u042F\u0437\u044B\u043A",
+          hint: selectedProvider && !selectedProvider.languages.includes(settings.language) ? `\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043D\u0435 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 \xAB${languageLabel(settings.language)}\xBB` : void 0,
+          children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "select",
+            {
+              className: "vs-select",
+              value: settings.language,
+              onChange: (event) => {
+                const language = event.target.value;
+                update((current2) => ({ ...current2, language }));
+                void configure({ language });
+              },
+              children: (selectedProvider?.languages ?? catalog?.providers.flatMap((item) => item.languages) ?? ["auto"]).map((code) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: code, children: languageLabel(code) }, code))
+            }
+          )
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          "button",
+          {
+            type: "button",
+            className: "vs-btn",
+            disabled: busy || !selectedProvider,
+            onClick: () => selectedProvider && void prepare(selectedProvider.id),
+            children: "\u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void refresh(), children: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u0441\u0442\u0430\u0442\u0443\u0441" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0432\u0438\u0436\u043A\u0438 \u2014 Whisper (ONNX \u043D\u0430 CPU \u0447\u0435\u0440\u0435\u0437 sherpa-onnx, \u0432\u0445\u043E\u0434\u0438\u0442 \u0432 DSH). \u0420\u0443\u0441\u0441\u043A\u0438\u0439 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044F. \u041C\u043E\u0434\u0435\u043B\u044C \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u043A\u043D\u043E\u043F\u043A\u043E\u0439 \xAB\u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C\xBB: tiny \u2248 100 \u041C\u0411 (\u0431\u044B\u0441\u0442\u0440\u043E), base \u2248 155 \u041C\u0411, small \u2248 360 \u041C\u0411 (\u0442\u043E\u0447\u043D\u0435\u0435). \u0414\u043B\u044F \u043C\u0430\u043A\u0441\u0438\u043C\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u043A\u0430\u0447\u0435\u0441\u0442\u0432\u0430 \u043C\u043E\u0436\u043D\u043E \u0432\u044B\u0431\u0440\u0430\u0442\u044C \u043E\u0431\u043B\u0430\u0447\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440." })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0421\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u0435 \u043C\u043E\u0434\u0435\u043B\u0435\u0439" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u0417\u0430\u043F\u0438\u0448\u0438\u0442\u0435 \u043E\u0434\u043D\u0443 \u0444\u0440\u0430\u0437\u0443 \u2014 \u0435\u0451 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u044E\u0442 \u0432\u0441\u0435 \u0433\u043E\u0442\u043E\u0432\u044B\u0435 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u044B \u043D\u0435\u0437\u0430\u0432\u0438\u0441\u0438\u043C\u043E. \u0422\u0430\u043A \u0432\u0438\u0434\u043D\u043E, \u043A\u0442\u043E \u043A\u0430\u043A \u0441\u043B\u044B\u0448\u0438\u0442, \u043D\u0430\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0431\u044B\u0441\u0442\u0440\u043E \u043E\u0442\u0432\u0435\u0447\u0430\u0435\u0442 \u0438 \u0433\u0434\u0435 \u043E\u0448\u0438\u0431\u0430\u0435\u0442\u0441\u044F." }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          "button",
+          {
+            type: "button",
+            className: "vs-btn",
+            "data-kind": "primary",
+            disabled: compareState === "running",
+            onClick: () => {
+              if (compareState === "recording") void stopCompare();
+              else if (compareState === "idle") void startCompare();
+            },
+            children: compareState === "recording" ? "\u041E\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u044C \u0438 \u0441\u0440\u0430\u0432\u043D\u0438\u0442\u044C" : compareState === "running" ? "\u0420\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435\u2026" : "\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C \u0442\u0435\u0441\u0442"
+          }
+        ),
+        compareResults.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => setCompareResults([]), children: "\u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C" }) : null
+      ] }),
+      compareResults.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-history-item", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-history-meta", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: item.name }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-badge", children: item.ms !== void 0 ? `${item.ms} \u043C\u0441` : "\u2014" })
+        ] }),
+        item.text !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: item.text || "\u2205 (\u043F\u0443\u0441\u0442\u043E)" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-error", children: item.error ?? "\u043E\u0448\u0438\u0431\u043A\u0430" })
+      ] }, item.id))
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0434\u0438\u043A\u0442\u043E\u0432\u043E\u043A" }) }),
+      history.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041F\u043E\u043A\u0430 \u043F\u0443\u0441\u0442\u043E." }) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-history", children: history.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-history-item", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: entry.text }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-history-meta", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: new Date(entry.createdAt).toLocaleString() }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-badge", children: [
+            Math.round(entry.seconds),
+            " \u0441"
+          ] }),
+          entry.language ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-badge", children: languageLabel(entry.language) }) : null,
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { flex: 1 } }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "button",
+            {
+              type: "button",
+              className: "vs-link",
+              onClick: () => {
+                if (activeDraft) activeDraft.insertText(entry.text);
+                else void navigator.clipboard?.writeText(entry.text).catch(() => {
+                });
+              },
+              children: "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-link", onClick: () => void navigator.clipboard?.writeText(entry.text).catch(() => {
+          }), children: "\u041A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C" }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-link", onClick: () => removeHistory(entry.id), children: "\u0423\u0434\u0430\u043B\u0438\u0442\u044C" })
+        ] })
+      ] }, entry.id)) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => exportHistory("md"), disabled: history.length === 0, children: "\u042D\u043A\u0441\u043F\u043E\u0440\u0442 .md" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => exportHistory("txt"), disabled: history.length === 0, children: "\u042D\u043A\u0441\u043F\u043E\u0440\u0442 .txt" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => exportHistory("json"), disabled: history.length === 0, children: "\u042D\u043A\u0441\u043F\u043E\u0440\u0442 .json" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => clearHistory(), disabled: history.length === 0, children: "\u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C" })
+      ] })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", open: true, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041C\u0438\u043A\u0440\u043E\u0444\u043E\u043D" }) }),
@@ -2444,51 +2580,6 @@ function SettingsPage(props) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0417\u0430\u0449\u0438\u0442\u0430 \u043E\u0442 \u043F\u0435\u0440\u0435\u0433\u0440\u0443\u0437\u043A\u0438", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { checked: settings.limiter, onChange: (value) => update((current2) => ({ ...current2, limiter: value })) }) })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0422\u0438\u0448\u0438\u043D\u0430 \u0438 \u0433\u043E\u0440\u044F\u0447\u0438\u0435 \u043A\u043B\u0430\u0432\u0438\u0448\u0438" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0410\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E \u0442\u0438\u0448\u0438\u043D\u0435", hint: "\u0417\u0430\u0432\u0435\u0440\u0448\u0430\u0435\u0442 \u0437\u0430\u043F\u0438\u0441\u044C, \u043A\u043E\u0433\u0434\u0430 \u0432\u044B \u0437\u0430\u043C\u043E\u043B\u0447\u0430\u043B\u0438.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { checked: settings.vad.autoStop, onChange: (value) => update((current2) => ({ ...current2, vad: { ...current2.vad, autoStop: value } })) }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041F\u0430\u0443\u0437\u0430 \u0434\u043E \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        Slider,
-        {
-          value: settings.vad.silenceMs,
-          min: 400,
-          max: 5e3,
-          step: 100,
-          unit: " \u043C\u0441",
-          onChange: (value) => update((current2) => ({ ...current2, vad: { ...current2.vad, silenceMs: value } }))
-        }
-      ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041F\u043E\u0440\u043E\u0433 \u0442\u0438\u0448\u0438\u043D\u044B", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        Slider,
-        {
-          value: settings.vad.thresholdDb,
-          min: -70,
-          max: -20,
-          unit: " \u0434\u0411",
-          onChange: (value) => update((current2) => ({ ...current2, vad: { ...current2.vad, thresholdDb: value } }))
-        }
-      ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "Push-to-talk", hint: "\u0417\u0430\u043F\u0438\u0441\u044C \u043F\u043E \u0443\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u044E \u0441\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u044F \u043A\u043B\u0430\u0432\u0438\u0448.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { checked: settings.ptt.enabled, onChange: (value) => update((current2) => ({ ...current2, ptt: { ...current2.ptt, enabled: value } })) }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0421\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u0435", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        ComboField,
-        {
-          value: settings.ptt.combo,
-          onChange: (value) => update((current2) => ({ ...current2, ptt: { ...current2.ptt, combo: value } }))
-        }
-      ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0420\u0435\u0436\u0438\u043C", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-        "select",
-        {
-          className: "vs-select",
-          value: settings.ptt.mode,
-          onChange: (event) => update((current2) => ({ ...current2, ptt: { ...current2.ptt, mode: event.target.value === "toggle" ? "toggle" : "hold" } })),
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "hold", children: "\u0423\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435" }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "toggle", children: "\u041F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435" })
-          ]
-        }
-      ) })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0422\u0435\u043A\u0441\u0442" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0410\u0432\u0442\u043E-\u043F\u0443\u043D\u043A\u0442\u0443\u0430\u0446\u0438\u044F", hint: "\u0417\u0430\u0433\u043B\u0430\u0432\u043D\u044B\u0435 \u0431\u0443\u043A\u0432\u044B \u0438 \u0442\u043E\u0447\u043A\u0430 \u0432 \u043A\u043E\u043D\u0446\u0435.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         Check,
@@ -2572,63 +2663,6 @@ function SettingsPage(props) {
       ] })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0420\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435" }) }),
-      error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-error", children: error }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440", hint: selectedProvider ? `\u0421\u0442\u0430\u0442\u0443\u0441: ${phaseText(selectedProvider)}` : "\u0421\u043F\u0438\u0441\u043E\u043A \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "select",
-        {
-          className: "vs-select",
-          value: settings.providerId || catalog?.selection.providerId || "",
-          onChange: (event) => {
-            const providerId = event.target.value;
-            const provider = providers.find((item) => item.id === providerId);
-            const language = provider && !provider.languages.includes(settings.language) ? provider.languages.includes("ru") ? "ru" : provider.languages[0] ?? "auto" : settings.language;
-            update((current2) => ({ ...current2, providerId, language }));
-            void configure({ providerId, language });
-          },
-          children: providers.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("option", { value: item.id, children: [
-            providerLabel(item),
-            " \u2014 ",
-            phaseText(item)
-          ] }, item.id))
-        }
-      ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        Row,
-        {
-          label: "\u042F\u0437\u044B\u043A",
-          hint: selectedProvider && !selectedProvider.languages.includes(settings.language) ? `\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043D\u0435 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442 \xAB${languageLabel(settings.language)}\xBB` : void 0,
-          children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "select",
-            {
-              className: "vs-select",
-              value: settings.language,
-              onChange: (event) => {
-                const language = event.target.value;
-                update((current2) => ({ ...current2, language }));
-                void configure({ language });
-              },
-              children: (selectedProvider?.languages ?? catalog?.providers.flatMap((item) => item.languages) ?? ["auto"]).map((code) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: code, children: languageLabel(code) }, code))
-            }
-          )
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          "button",
-          {
-            type: "button",
-            className: "vs-btn",
-            disabled: busy || !selectedProvider,
-            onClick: () => selectedProvider && void prepare(selectedProvider.id),
-            children: "\u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C"
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void refresh(), children: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u0441\u0442\u0430\u0442\u0443\u0441" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0432\u0438\u0436\u043A\u0438 \u2014 Whisper (ONNX \u043D\u0430 CPU \u0447\u0435\u0440\u0435\u0437 sherpa-onnx, \u0432\u0445\u043E\u0434\u0438\u0442 \u0432 DSH). \u0420\u0443\u0441\u0441\u043A\u0438\u0439 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044F. \u041C\u043E\u0434\u0435\u043B\u044C \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u043A\u043D\u043E\u043F\u043A\u043E\u0439 \xAB\u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C\xBB: tiny \u2248 100 \u041C\u0411 (\u0431\u044B\u0441\u0442\u0440\u043E), base \u2248 155 \u041C\u0411, small \u2248 360 \u041C\u0411 (\u0442\u043E\u0447\u043D\u0435\u0435). \u0414\u043B\u044F \u043C\u0430\u043A\u0441\u0438\u043C\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u043A\u0430\u0447\u0435\u0441\u0442\u0432\u0430 \u043C\u043E\u0436\u043D\u043E \u0432\u044B\u0431\u0440\u0430\u0442\u044C \u043E\u0431\u043B\u0430\u0447\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440." })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041E\u0431\u043B\u0430\u0447\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "OpenAI-\u0441\u043E\u0432\u043C\u0435\u0441\u0442\u0438\u043C\u044B\u0439 API: \u043C\u043E\u0436\u043D\u043E \u0443\u043A\u0430\u0437\u0430\u0442\u044C \u0441\u0432\u043E\u0439 \u0441\u0435\u0440\u0432\u0435\u0440, \u043C\u043E\u0434\u0435\u043B\u044C \u0438 \u0441\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u043A\u043B\u044E\u0447. \u041A\u043B\u044E\u0447 \u0445\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u0432 \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E\u043C \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435 DSH (credentials) \u0438 \u043D\u0438\u043A\u043E\u0433\u0434\u0430 \u043D\u0435 \u0432\u043E\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442\u0441\u044F \u0432 \u0438\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441; \u0432 \u043A\u043E\u043D\u0444\u0438\u0433\u0435 \u043E\u0441\u0442\u0430\u0451\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u0438\u043C\u044F \u0441\u0441\u044B\u043B\u043A\u0438." }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "Base URL", hint: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 https://api.openai.com/v1 \u0438\u043B\u0438 \u0430\u0434\u0440\u0435\u0441 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0433\u043E shim-\u0441\u0435\u0440\u0432\u0435\u0440\u0430.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -2675,76 +2709,7 @@ function SettingsPage(props) {
       ] }),
       cloudNotice ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: cloudNotice }) : null
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0421\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u0417\u0430\u043F\u0438\u0448\u0438\u0442\u0435 \u043E\u0434\u043D\u0443 \u0444\u0440\u0430\u0437\u0443 \u2014 \u0435\u0451 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u044E\u0442 \u0432\u0441\u0435 \u0433\u043E\u0442\u043E\u0432\u044B\u0435 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u044B \u043D\u0435\u0437\u0430\u0432\u0438\u0441\u0438\u043C\u043E. \u0422\u0430\u043A \u0432\u0438\u0434\u043D\u043E, \u043A\u0442\u043E \u043A\u0430\u043A \u0441\u043B\u044B\u0448\u0438\u0442, \u043D\u0430\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0431\u044B\u0441\u0442\u0440\u043E \u043E\u0442\u0432\u0435\u0447\u0430\u0435\u0442 \u0438 \u0433\u0434\u0435 \u043E\u0448\u0438\u0431\u0430\u0435\u0442\u0441\u044F." }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          "button",
-          {
-            type: "button",
-            className: "vs-btn",
-            "data-kind": "primary",
-            disabled: compareState === "running",
-            onClick: () => {
-              if (compareState === "recording") void stopCompare();
-              else if (compareState === "idle") void startCompare();
-            },
-            children: compareState === "recording" ? "\u041E\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u044C \u0438 \u0441\u0440\u0430\u0432\u043D\u0438\u0442\u044C" : compareState === "running" ? "\u0420\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435\u2026" : "\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C \u0442\u0435\u0441\u0442"
-          }
-        ),
-        compareResults.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => setCompareResults([]), children: "\u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C" }) : null
-      ] }),
-      compareResults.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-history-item", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-history-meta", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: item.name }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-badge", children: item.ms !== void 0 ? `${item.ms} \u043C\u0441` : "\u2014" })
-        ] }),
-        item.text !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: item.text || "\u2205 (\u043F\u0443\u0441\u0442\u043E)" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-error", children: item.error ?? "\u043E\u0448\u0438\u0431\u043A\u0430" })
-      ] }, item.id))
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0434\u0438\u043A\u0442\u043E\u0432\u043E\u043A" }) }),
-      history.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041F\u043E\u043A\u0430 \u043F\u0443\u0441\u0442\u043E." }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-history", children: history.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-history-item", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: entry.text }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-history-meta", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: new Date(entry.createdAt).toLocaleString() }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-badge", children: [
-            Math.round(entry.seconds),
-            " \u0441"
-          ] }),
-          entry.language ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-badge", children: languageLabel(entry.language) }) : null,
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { flex: 1 } }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "button",
-            {
-              type: "button",
-              className: "vs-link",
-              onClick: () => {
-                if (activeDraft) activeDraft.insertText(entry.text);
-                else void navigator.clipboard?.writeText(entry.text).catch(() => {
-                });
-              },
-              children: "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-link", onClick: () => void navigator.clipboard?.writeText(entry.text).catch(() => {
-          }), children: "\u041A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C" }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-link", onClick: () => removeHistory(entry.id), children: "\u0423\u0434\u0430\u043B\u0438\u0442\u044C" })
-        ] })
-      ] }, entry.id)) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => exportHistory("md"), disabled: history.length === 0, children: "\u042D\u043A\u0441\u043F\u043E\u0440\u0442 .md" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => exportHistory("txt"), disabled: history.length === 0, children: "\u042D\u043A\u0441\u043F\u043E\u0440\u0442 .txt" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => exportHistory("json"), disabled: history.length === 0, children: "\u042D\u043A\u0441\u043F\u043E\u0440\u0442 .json" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => clearHistory(), disabled: history.length === 0, children: "\u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C" })
-      ] })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", open: true, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0421\u0431\u0440\u043E\u0441" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-controls", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", "data-kind": "danger", onClick: () => resetSettings(), children: "\u0412\u0435\u0440\u043D\u0443\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E" }) })
-    ] })
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-footer-action", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", "data-kind": "danger", onClick: () => resetSettings(), children: "\u0412\u0435\u0440\u043D\u0443\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E" }) })
   ] });
 }
 var DICTIONARY_RU = {
