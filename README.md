@@ -1,20 +1,29 @@
 <p align="center">
-  <img src="plugin/icon.svg" width="96" height="96" alt="Voice Studio" />
+  <img src="docs/wave.svg" width="640" alt="Voice Audio Rus" />
 </p>
 
-<h1 align="center">Voice Studio</h1>
+<h1 align="center">Voice Audio Rus</h1>
 
 <p align="center">
-  Голосовой ввод для <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>:
-  локальный Whisper, шумоподавление, живой тест микрофона и сравнение движков распознавания.
+  Голосовой ввод для <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>
+  с локальным Whisper. <b>Русский язык — приоритет</b>: распознавание, шумоподавление,
+  тест микрофона и сравнение движков.
 </p>
 
 <p align="center">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-3fb950" />
   <img alt="version" src="https://img.shields.io/badge/version-0.2.0-2f6bff" />
-  <img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20Electron-7b3ff2" />
+  <img alt="lang" src="https://img.shields.io/badge/язык-русский%20приоритет-7b3ff2" />
   <img alt="stt" src="https://img.shields.io/badge/STT-Whisper%20%7C%20OpenAI--compatible-0f1115" />
   <img alt="offline" src="https://img.shields.io/badge/offline-yes-3fb950" />
+</p>
+
+<p align="center">
+  <a href="https://vasyarot.github.io/voice-audio-rus/"><b>🌐 Web-версия страницы</b></a>
+  ·
+  <a href="#быстрый-старт">Установка</a>
+  ·
+  <a href="docs/local-stt-options.md">Сравнение STT</a>
 </p>
 
 ---
@@ -22,7 +31,8 @@
 ## Что это
 
 Плагин к DSH (Cordis-бандл: хост-часть + web-клиент), который добавляет диктовку
-прямо в композер и полный контроль над звуком:
+в композер и полный контроль над звуком. Рассчитан в первую очередь на русскую речь:
+по умолчанию включены русский язык и локальная модель Whisper.
 
 - кнопка микрофона в поле ввода → запись → распознавание → вставка текста
   с проверкой ревизии черновика;
@@ -38,6 +48,7 @@
 | | |
 |---|---|
 | 🎙 **Диктовка** | кнопка в композере, таймер, уровень, отмена/повтор, вставка в черновик |
+| 🇷🇺 **Русский** | `ru` по умолчанию, автоопределение языка, локальная модель без облака |
 | 🔊 **Шумоподавление** | RNNoise с регулировкой силы, high-pass, гейт, AGC, входное усиление |
 | 📈 **Тест микрофона** | уровень «до» и «после» обработки, дБ, калибровка «Обрезать шум» |
 | ⚡ **Push-to-talk** | удержание/переключение, запись сочетания клавиш |
@@ -49,11 +60,11 @@
 ## Быстрый старт
 
 ```powershell
-dsh plugin --profile desktop add "file:D:\path\to\voice-studio\plugin"
+dsh plugin --profile desktop add "file:D:\path\to\voice-audio-rus\plugin"
 ```
 
 Перезапустите DSH (правка клиента подхватывается и по `Ctrl+R`), откройте
-**Плагины → Голосовая студия** и нажмите **«Скачать / подготовить»** — загрузка
+**Плагины → Voice Audio Rus** и нажмите **«Скачать / подготовить»** — загрузка
 модели начнётся с прогресс-баром.
 
 ## Локальные модели
@@ -83,9 +94,6 @@ flowchart LR
   G --> I[Текст в черновик]
   H --> I
 ```
-
-Хост регистрирует провайдеров в общем сервисе `speechToText`; браузер монтирует
-сгенерированный Remote и не общается с облаком напрямую.
 
 ## Настройки
 
@@ -126,8 +134,8 @@ plugin/
   cordis.patch.yml    # строки профиля
   src/client/         # UI, аудио-конвейер, настройки
   assets/             # RNNoise wasm + worklet
+docs/                 # web-страница, сравнение STT и проверки
 tools/                # сборка и тесты
-docs/                 # сравнение STT и проверки
 ```
 
 ## Приватность

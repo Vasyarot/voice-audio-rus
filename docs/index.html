@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice Audio Rus — голосовой ввод для DeepSeek Harness</title>
+<meta name="description" content="Голосовой ввод для DeepSeek Harness с локальным Whisper. Русский язык — приоритет: шумоподавление, тест микрофона, сравнение движков.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #07080c; --ink: #f5f7ff; --muted: #9aa3b8;
+    --blue: #2f6bff; --violet: #7b3ff2; --green: #3fb950;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(1200px 600px at 80% -10%, #1b2a6b55, transparent 60%),
+                radial-gradient(900px 500px at 0% 110%, #4b1f8f44, transparent 60%),
+                var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    overflow-x: hidden;
+  }
+  .aurora {
+    position: fixed; inset: -20%; z-index: -1; pointer-events: none; filter: blur(80px); opacity: .55;
+  }
+  .aurora span {
+    position: absolute; width: 46vmax; height: 46vmax; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #2f6bff, transparent 60%);
+    animation: drift 26s ease-in-out infinite alternate;
+  }
+  .aurora span:nth-child(2) { background: radial-gradient(circle at 60% 40%, #7b3ff2, transparent 60%); left: 55%; top: 10%; animation-duration: 34s; }
+  .aurora span:nth-child(3) { background: radial-gradient(circle at 50% 60%, #3fb950, transparent 60%); left: 25%; top: 55%; animation-duration: 30s; opacity: .5; }
+  @keyframes drift { from { transform: translate3d(-6%, -4%, 0) scale(1); } to { transform: translate3d(6%, 5%, 0) scale(1.12); } }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 72px 24px 64px; }
+  .hero { display: grid; gap: 22px; }
+  .brand { display: flex; align-items: center; gap: 14px; animation: rise .8s ease both; }
+  .brand img { width: 64px; height: 64px; border-radius: 16px; box-shadow: 0 10px 40px #2f6bff55; }
+  .kicker { font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  h1 {
+    margin: 0; font-size: clamp(38px, 7vw, 76px); line-height: .98; letter-spacing: -.03em;
+    background: linear-gradient(92deg, #ffffff 0%, #9db7ff 42%, #b78cff 70%, #6ff0a1 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    background-size: 200% 100%; animation: shine 7s linear infinite, rise .8s .05s ease both;
+  }
+  .sub { margin: 0; max-width: 720px; color: #c7cee0; font-size: clamp(15px, 2vw, 19px); line-height: 1.5; animation: rise .8s .12s ease both; }
+  .sub b { color: #fff; }
+
+  .wave { display: flex; gap: 6px; align-items: flex-end; height: 92px; margin: 10px 0 4px; animation: rise .8s .18s ease both; }
+  .wave i {
+    display: block; width: 10px; border-radius: 6px;
+    background: linear-gradient(180deg, #6ff0a1, #2f6bff 60%, #7b3ff2);
+    height: 20%; animation: pulse 1.6s ease-in-out infinite;
+    transform-origin: bottom; opacity: .95;
+  }
+  .wave i:nth-child(3n) { animation-duration: 2.1s; }
+  .wave i:nth-child(4n) { animation-duration: 1.25s; }
+  .wave i:nth-child(5n) { animation-duration: 2.6s; }
+  @keyframes pulse { 0%,100% { height: 18%; } 50% { height: var(--h, 70%); } }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; animation: rise .8s .24s ease both; }
+  .chip {
+    border: 1px solid #ffffff1a; background: #ffffff08; color: #dfe5f5;
+    padding: 7px 12px; border-radius: 999px; font-size: 13px; backdrop-filter: blur(6px);
+  }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; animation: rise .8s .3s ease both; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+    padding: 12px 18px; border-radius: 12px; font-weight: 600; font-size: 14px;
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .btn.primary { color: #fff; background: linear-gradient(92deg, var(--blue), var(--violet)); box-shadow: 0 12px 30px #2f6bff44; }
+  .btn.ghost { color: #e8ecf8; border: 1px solid #ffffff22; background: #ffffff08; }
+  .btn:hover { transform: translateY(-2px); }
+  .btn.primary:hover { box-shadow: 0 16px 40px #7b3ff266; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 44px; }
+  .card {
+    border: 1px solid #ffffff12; background: linear-gradient(180deg, #ffffff0a, #ffffff04);
+    border-radius: 16px; padding: 18px; animation: rise .7s ease both;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 15px; letter-spacing: .01em; }
+  .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+  .card .ico { font-size: 20px; margin-bottom: 10px; display: block; }
+
+  .install { margin-top: 40px; border: 1px solid #ffffff14; border-radius: 16px; overflow: hidden; animation: rise .8s .1s ease both; }
+  .install header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #ffffff08; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .install pre { margin: 0; padding: 16px; overflow: auto; font-size: 13px; color: #cfe3ff; background: #0a0c14; }
+  .copy { border: 1px solid #ffffff22; background: #ffffff10; color: #e8ecf8; border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+  .copy:active { transform: scale(.97); }
+
+  footer { margin-top: 54px; color: #7f889e; font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: space-between; animation: rise .8s .2s ease both; }
+  a { color: #9db7ff; }
+
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes shine { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .001s !important; animation-iteration-count: 1 !important; }
+  }
+</style>
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+
+<main class="wrap">
+  <section class="hero">
+    <div class="brand">
+      <img src="icon.svg" alt="Voice Audio Rus">
+      <div>
+        <div class="kicker">DeepSeek Harness plugin</div>
+        <div style="font-size:14px;color:#dbe3f7">Voice Audio Rus · русский — приоритет</div>
+      </div>
+    </div>
+
+    <h1>Voice Audio Rus</h1>
+    <p class="sub">
+      Голосовой ввод для DeepSeek Harness с локальным <b>Whisper</b>. Русский язык — <b>приоритет</b>:
+      шумоподавление RNNoise, живой тест микрофона в дБ, калибровка шума и сравнение движков распознавания.
+    </p>
+
+    <div class="wave" aria-hidden="true">
+      <i style="--h:62%"></i><i style="--h:34%"></i><i style="--h:80%"></i><i style="--h:46%"></i>
+      <i style="--h:72%"></i><i style="--h:28%"></i><i style="--h:88%"></i><i style="--h:52%"></i>
+      <i style="--h:66%"></i><i style="--h:38%"></i><i style="--h:76%"></i><i style="--h:44%"></i>
+      <i style="--h:58%"></i><i style="--h:32%"></i><i style="--h:84%"></i><i style="--h:50%"></i>
+    </div>
+
+    <div class="chips">
+      <span class="chip">🎙 локальный Whisper</span>
+      <span class="chip">🇷🇺 русский по умолчанию</span>
+      <span class="chip">🔇 RNNoise + гейт</span>
+      <span class="chip">📈 дБ до/после</span>
+      <span class="chip">⚡ push-to-talk</span>
+      <span class="chip">🧪 сравнение движков</span>
+    </div>
+
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/Vasyarot/voice-audio-rus">Открыть на GitHub</a>
+      <a class="btn ghost" href="https://github.com/Vasyarot/voice-audio-rus#быстрый-старт">Как установить</a>
+    </div>
+  </section>
+
+  <section class="grid">
+    <article class="card"><span class="ico">🎙</span><h3>Диктовка в композер</h3><p>Кнопка микрофона, таймер, уровень, вставка текста с проверкой ревизии черновика.</p></article>
+    <article class="card"><span class="ico">🔇</span><h3>Чистый звук</h3><p>RNNoise, обрезной фильтр, шумовой гейт и AGC. Одна кнопка включает всю цепочку.</p></article>
+    <article class="card"><span class="ico">📈</span><h3>Тест микрофона</h3><p>Уровень до и после подавления, децибелы, калибровка «Обрезать шум» в один клик.</p></article>
+    <article class="card"><span class="ico">🧪</span><h3>Сравнение провайдеров</h3><p>Одна запись — все готовые движки распознают её независимо: текст, задержка, ошибки.</p></article>
+  </section>
+
+  <section class="install">
+    <header><span>Установка</span><button class="copy" data-copy="dsh plugin --profile desktop add &quot;file:D:\path\to\voice-audio-rus\plugin&quot;">Копировать</button></header>
+    <pre><code>dsh plugin --profile desktop add "file:D:\path\to\voice-audio-rus\plugin"</code></pre>
+  </section>
+
+  <footer>
+    <span>MIT · сторонние компоненты: RNNoise, sherpa-onnx, Whisper</span>
+    <span><a href="https://github.com/Vasyarot/voice-audio-rus">GitHub</a> · <a href="https://github.com/Vasyarot/voice-audio-rus/blob/main/docs/local-stt-options.md">Сравнение STT</a></span>
+  </footer>
+</main>
+
+<script>
+  document.querySelectorAll('.copy').forEach((button) => {
+    button.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(button.dataset.copy); button.textContent = 'Скопировано'; }
+      catch { button.textContent = 'Ctrl+C'; }
+      setTimeout(() => { button.textContent = 'Копировать'; }, 1600);
+    });
+  });
+</script>
+</body>
+</html>

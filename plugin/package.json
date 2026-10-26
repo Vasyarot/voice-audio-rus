@@ -2,7 +2,7 @@
   "name": "dsh-plugin-voice-studio",
   "version": "0.2.0",
   "private": true,
-  "description": "Голосовой ввод для DeepSeek Harness: настройки звука, шумоподавление RNNoise, VAD, push-to-talk, история и словарь замен",
+  "description": "Voice Audio Rus: голосовой ввод для DeepSeek Harness с локальным Whisper (русский приоритет), RNNoise, тест микрофона и сравнение STT",
   "type": "module",
   "main": "index.js",
   "exports": {
