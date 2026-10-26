@@ -1229,26 +1229,28 @@ var CSS = `
 .vs-status{font-size:12px;color:var(--dsw-alias-label-secondary, #888);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .vs-pending{display:flex;gap:6px;align-items:center;min-width:0}
 .vs-link{border:0;background:none;color:var(--dsw-alias-brand-primary, #2f6bff);cursor:pointer;font:inherit;font-size:12px;padding:0}
-.vs-card{display:flex;flex-direction:column;gap:16px;font-size:13px;line-height:1.45}
-.vs-section{display:flex;flex-direction:column;gap:8px;padding:12px;border:.5px solid var(--dsw-alias-border-l1, #ffffff14);border-radius:10px}
-.vs-section h4{margin:0;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary, inherit)}
+.vs-card{display:flex;flex-direction:column;gap:16px;font-size:14px;line-height:1.5}
+.vs-section{display:flex;flex-direction:column;gap:10px;padding:14px;border:.5px solid var(--dsw-alias-border-l1, #ffffff14);border-radius:10px}
+.vs-section h4{margin:0;font-size:14px;font-weight:600;color:var(--dsw-alias-label-primary, inherit)}
 .vs-section summary{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;outline:none;user-select:none}
 .vs-section summary::-webkit-details-marker{display:none}
 .vs-section summary::before{content:'\u25B8';font-size:11px;color:var(--dsw-alias-label-tertiary, #777);transition:transform .15s ease}
 .vs-section[open] summary::before{transform:rotate(90deg)}
 .vs-section summary h4{margin:0}
-.vs-hint{margin:0;font-size:12px;color:var(--dsw-alias-label-tertiary, #777)}
+.vs-hint{margin:0;font-size:12.5px;color:var(--dsw-alias-label-tertiary, #777)}
 .vs-line{display:flex;align-items:center;gap:8px;justify-content:space-between}
 .vs-line>label{flex:1;min-width:0}
 .vs-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.vs-input,.vs-select{font:inherit;font-size:12px;color:inherit;background:var(--dsw-alias-bg-module-platform, #ffffff08);border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);border-radius:6px;padding:4px 6px;min-width:0}
+.vs-input,.vs-select{font:inherit;font-size:13px;color:inherit;background:var(--dsw-alias-bg-module-platform, #ffffff08);border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);border-radius:6px;padding:5px 7px;min-width:0}
 .vs-input:focus,.vs-select:focus{outline:1px solid var(--dsw-alias-brand-primary, #2f6bff)}
 .vs-range{accent-color:var(--dsw-alias-brand-primary, #2f6bff);flex:1;min-width:80px}
 .vs-value{font-variant-numeric:tabular-nums;font-size:11px;color:var(--dsw-alias-label-tertiary, #777);min-width:52px;text-align:right}
 .vs-check{display:flex;align-items:center;gap:6px;cursor:pointer}
-.vs-btn{font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);background:var(--dsw-alias-bg-module-platform, transparent);color:inherit;cursor:pointer}
+.vs-btn{font:inherit;font-size:13px;padding:5px 11px;border-radius:6px;border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);background:var(--dsw-alias-bg-module-platform, transparent);color:inherit;cursor:pointer}
 .vs-btn:hover{background:var(--dsw-alias-interactive-bg-hover, #ffffff14)}
 .vs-btn[data-kind="primary"]{background:var(--dsw-alias-interactive-bg-active, #ffffff24);color:inherit;border-color:var(--dsw-alias-border-l2, #ffffff1f)}
+.vs-btn[data-kind="danger"]{background:#e5484d1f;color:#ff8b90;border-color:#e5484d66}
+.vs-btn[data-kind="danger"]:hover{background:#e5484d33}
 .vs-live{display:flex;flex-direction:column;gap:6px}
 .vs-live-meter{height:10px;border-radius:5px;background:var(--dsw-alias-border-l1, #ffffff1a);overflow:hidden}
 .vs-live-meter>span{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#3fb950 0%,#d29922 70%,#e5484d 100%);transition:width .08s linear}
@@ -2316,7 +2318,10 @@ function SettingsPage(props) {
             vad: { ...current2.vad, thresholdDb: value }
           }))
         }
-      ),
+      )
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0428\u0443\u043C\u043E\u043F\u043E\u0434\u0430\u0432\u043B\u0435\u043D\u0438\u0435" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         Row,
         {
@@ -2358,7 +2363,7 @@ function SettingsPage(props) {
       ) })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0428\u0443\u043C\u043E\u043F\u043E\u0434\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u0438 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0430" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0430 \u0437\u0432\u0443\u043A\u0430" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "RNNoise", hint: "\u041D\u0435\u0439\u0440\u043E\u0441\u0435\u0442\u0435\u0432\u043E\u0435 \u0448\u0443\u043C\u043E\u043F\u043E\u0434\u0430\u0432\u043B\u0435\u043D\u0438\u0435 Xiph \u0432 WebAssembly. \u0420\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { checked: settings.rnnoise.enabled, onChange: (value) => update((current2) => ({ ...current2, rnnoise: { ...current2.rnnoise, enabled: value } })) }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0421\u0438\u043B\u0430 RNNoise", hint: "0% \u2014 \u0447\u0438\u0441\u0442\u044B\u0439 \u0441\u0438\u0433\u043D\u0430\u043B, 100% \u2014 \u043F\u043E\u043B\u043D\u043E\u0441\u0442\u044C\u044E \u043E\u0447\u0438\u0449\u0435\u043D\u043D\u044B\u0439.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         Slider,
@@ -2736,24 +2741,9 @@ function SettingsPage(props) {
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => clearHistory(), disabled: history.length === 0, children: "\u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C" })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", open: true, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0421\u0431\u0440\u043E\u0441" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => resetSettings(), children: "\u0412\u0435\u0440\u043D\u0443\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          "button",
-          {
-            type: "button",
-            className: "vs-btn",
-            onClick: () => setSettings({
-              ...normalizeSettings(DEFAULT_SETTINGS),
-              providerId: settings.providerId,
-              language: settings.language
-            }),
-            children: "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u0442\u043E\u043B\u044C\u043A\u043E \u0437\u0432\u0443\u043A"
-          }
-        )
-      ] })
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-controls", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", "data-kind": "danger", onClick: () => resetSettings(), children: "\u0412\u0435\u0440\u043D\u0443\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E" }) })
     ] })
   ] });
 }

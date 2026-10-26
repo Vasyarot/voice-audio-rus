@@ -1193,6 +1193,9 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             }))
           }
         />
+      </details>
+      <details className="vs-section">
+        <summary><h4>Шумоподавление</h4></summary>
         <Row
           label="Шумоподавление"
           hint="Один переключатель: RNNoise + обрезной фильтр + шумовой гейт. Браузерный фильтр при этом отключается."
@@ -1228,7 +1231,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
       </details>
 
       <details className="vs-section">
-        <summary><h4>Шумоподавление и обработка</h4></summary>
+        <summary><h4>Обработка звука</h4></summary>
         <Row label="RNNoise" hint="Нейросетевое шумоподавление Xiph в WebAssembly. Работает локально.">
           <Check checked={settings.rnnoise.enabled} onChange={(value) => update((current) => ({ ...current, rnnoise: { ...current.rnnoise, enabled: value } }))} />
         </Row>
@@ -1639,24 +1642,11 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         </div>
       </details>
 
-      <details className="vs-section">
+      <details className="vs-section" open>
         <summary><h4>Сброс</h4></summary>
         <div className="vs-controls">
-          <button type="button" className="vs-btn" onClick={() => resetSettings()}>
+          <button type="button" className="vs-btn" data-kind="danger" onClick={() => resetSettings()}>
             Вернуть настройки по умолчанию
-          </button>
-          <button
-            type="button"
-            className="vs-btn"
-            onClick={() =>
-              setSettings({
-                ...normalizeSettings(DEFAULT_SETTINGS),
-                providerId: settings.providerId,
-                language: settings.language,
-              })
-            }
-          >
-            Сбросить только звук
           </button>
         </div>
       </details>
