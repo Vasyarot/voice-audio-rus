@@ -2371,20 +2371,8 @@ function SettingsPage(props) {
           )
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-          "button",
-          {
-            type: "button",
-            className: "vs-btn",
-            disabled: busy || !selectedProvider,
-            onClick: () => selectedProvider && void prepare(selectedProvider.id),
-            children: "\u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C"
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void refresh(), children: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u0441\u0442\u0430\u0442\u0443\u0441" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0432\u0438\u0436\u043A\u0438 \u2014 Whisper (ONNX \u043D\u0430 CPU \u0447\u0435\u0440\u0435\u0437 sherpa-onnx, \u0432\u0445\u043E\u0434\u0438\u0442 \u0432 DSH). \u0420\u0443\u0441\u0441\u043A\u0438\u0439 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044F. \u041C\u043E\u0434\u0435\u043B\u044C \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u043A\u043D\u043E\u043F\u043A\u043E\u0439 \xAB\u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C\xBB: tiny \u2248 100 \u041C\u0411 (\u0431\u044B\u0441\u0442\u0440\u043E), base \u2248 155 \u041C\u0411, small \u2248 360 \u041C\u0411 (\u0442\u043E\u0447\u043D\u0435\u0435). \u0414\u043B\u044F \u043C\u0430\u043A\u0441\u0438\u043C\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u043A\u0430\u0447\u0435\u0441\u0442\u0432\u0430 \u043C\u043E\u0436\u043D\u043E \u0432\u044B\u0431\u0440\u0430\u0442\u044C \u043E\u0431\u043B\u0430\u0447\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440." })
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-controls", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void refresh(), children: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0432\u0438\u0436\u043A\u0438 \u2014 Whisper (ONNX \u043D\u0430 CPU \u0447\u0435\u0440\u0435\u0437 sherpa-onnx, \u0432\u0445\u043E\u0434\u0438\u0442 \u0432 DSH). \u0420\u0443\u0441\u0441\u043A\u0438\u0439 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044F. \u041C\u043E\u0434\u0435\u043B\u044C \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u043A\u043D\u043E\u043F\u043A\u043E\u0439 \xAB\u0421\u043A\u0430\u0447\u0430\u0442\u044C \u0432\u0441\u0435 \u043C\u043E\u0434\u0435\u043B\u0438\xBB: tiny \u2248 100 \u041C\u0411 (\u0431\u044B\u0441\u0442\u0440\u043E), base \u2248 155 \u041C\u0411, small \u2248 360 \u041C\u0411 (\u0442\u043E\u0447\u043D\u0435\u0435). \u0414\u043B\u044F \u043C\u0430\u043A\u0441\u0438\u043C\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u043A\u0430\u0447\u0435\u0441\u0442\u0432\u0430 \u043C\u043E\u0436\u043D\u043E \u0432\u044B\u0431\u0440\u0430\u0442\u044C \u043E\u0431\u043B\u0430\u0447\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440." })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0421\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u0435 \u043C\u043E\u0434\u0435\u043B\u0435\u0439" }) }),

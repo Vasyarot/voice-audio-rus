@@ -1270,21 +1270,13 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           </select>
         </Row>
         <div className="vs-controls">
-          <button
-            type="button"
-            className="vs-btn"
-            disabled={busy || !selectedProvider}
-            onClick={() => selectedProvider && void prepare(selectedProvider.id)}
-          >
-            Подготовить модель
-          </button>
           <button type="button" className="vs-btn" onClick={() => void refresh()}>
-            Обновить статус
+            Обновить
           </button>
         </div>
         <p className="vs-hint">
           Локальные движки — Whisper (ONNX на CPU через sherpa-onnx, входит в DSH). Русский поддерживается.
-          Модель скачивается один раз кнопкой «Подготовить модель»: tiny ≈ 100 МБ (быстро), base ≈ 155 МБ,
+          Модель скачивается один раз кнопкой «Скачать все модели»: tiny ≈ 100 МБ (быстро), base ≈ 155 МБ,
           small ≈ 360 МБ (точнее). Для максимального качества можно выбрать облачный провайдер.
         </p>
       </details>
