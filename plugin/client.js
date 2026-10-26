@@ -1255,6 +1255,11 @@ var CSS = `
 .vs-live-meter{height:10px;border-radius:5px;background:var(--dsw-alias-border-l1, #ffffff1a);overflow:hidden}
 .vs-live-meter>span{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#3fb950 0%,#d29922 70%,#e5484d 100%);transition:width .08s linear}
 .vs-live-db{font-size:12px;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary, #888)}
+.vs-overlay{position:fixed;inset:0;z-index:60;background:#00000080;display:flex;align-items:center;justify-content:center;padding:16px}
+.vs-modal{width:min(560px,94vw);max-height:86vh;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:12px;border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);background:var(--dsw-alias-bg-module-platform, #1b1d22);color:var(--dsw-alias-label-primary, inherit);box-shadow:0 24px 60px #00000066}
+.vs-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.vs-modal-head h4{margin:0;font-size:14px;font-weight:600}
+.vs-footer-action{display:flex;justify-content:flex-end;padding-top:4px}
 .vs-btn:disabled{opacity:.5;cursor:default}
 .vs-dict{display:flex;flex-direction:column;gap:6px}
 .vs-dict-row{display:grid;grid-template-columns:1fr 1fr auto;gap:6px}
@@ -2150,6 +2155,27 @@ function SettingsPage(props) {
   const [cloudRevision, setCloudRevision] = (0, import_react3.useState)(null);
   const [keyValue, setKeyValue] = (0, import_react3.useState)("");
   const [cloudNotice, setCloudNotice] = (0, import_react3.useState)(null);
+  const [cloudOpen, setCloudOpen] = (0, import_react3.useState)(false);
+  const cloudDraftKey = "dsh.voice-studio.cloudDraft";
+  (0, import_react3.useEffect)(() => {
+    try {
+      const raw = window.localStorage.getItem(cloudDraftKey);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      setCloudForm((current2) => ({
+        baseURL: typeof draft.baseURL === "string" ? draft.baseURL : current2.baseURL,
+        model: typeof draft.model === "string" ? draft.model : current2.model,
+        apiKeyEnv: typeof draft.apiKeyEnv === "string" ? draft.apiKeyEnv : current2.apiKeyEnv
+      }));
+    } catch {
+    }
+  }, []);
+  (0, import_react3.useEffect)(() => {
+    try {
+      window.localStorage.setItem(cloudDraftKey, JSON.stringify(cloudForm));
+    } catch {
+    }
+  }, [cloudForm]);
   const saveCloud = async () => {
     setCloudNotice(null);
     try {
@@ -2277,6 +2303,9 @@ function SettingsPage(props) {
       void refresh();
     });
   }, [selectedProvider?.id, selectedProvider?.preparation?.phase, refresh, ctx]);
+  (0, import_react3.useEffect)(() => {
+    if (selectedProvider?.location === "cloud") setCloudOpen(true);
+  }, [selectedProvider?.id, selectedProvider?.location]);
   const update = (recipe) => updateSettings(recipe);
   const noiseReductionOn = settings.rnnoise.enabled && settings.gate.enabled && settings.highpass.enabled;
   const toggleNoiseReduction = (enabled) => update((current2) => ({
@@ -2743,7 +2772,70 @@ function SettingsPage(props) {
       ] }),
       cloudNotice ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: cloudNotice }) : null
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-footer-action", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", "data-kind": "danger", onClick: () => resetSettings(), children: "\u0412\u0435\u0440\u043D\u0443\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E" }) })
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-footer-action", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", "data-kind": "danger", onClick: () => resetSettings(), children: "\u0412\u0435\u0440\u043D\u0443\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E" }) }),
+    cloudOpen ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-overlay", role: "dialog", "aria-modal": "true", "aria-label": "\u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B \u043E\u0431\u043B\u0430\u0447\u043D\u043E\u0433\u043E \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-modal", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-modal-head", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B \u043E\u0431\u043B\u0430\u0447\u043D\u043E\u0433\u043E \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-round", "aria-label": "\u0417\u0430\u043A\u0440\u044B\u0442\u044C", onClick: () => setCloudOpen(false), children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconClose, {}) })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u0412\u0441\u0451 \u0432\u0432\u0435\u0434\u0451\u043D\u043D\u043E\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u044F\u0435\u0442\u0441\u044F \u043A\u0430\u043A \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u0438 \u043D\u0435 \u0442\u0435\u0440\u044F\u0435\u0442\u0441\u044F \u043F\u0440\u0438 \u0437\u0430\u043A\u0440\u044B\u0442\u0438\u0438 \u043E\u043A\u043D\u0430." }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "Base URL", hint: "https://api.openai.com/v1 \u0438\u043B\u0438 \u0430\u0434\u0440\u0435\u0441 \u0441\u0432\u043E\u0435\u0433\u043E \u0441\u0435\u0440\u0432\u0435\u0440\u0430", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "input",
+        {
+          className: "vs-input",
+          value: cloudForm.baseURL,
+          placeholder: "https://api.openai.com/v1",
+          onChange: (event) => setCloudForm((current2) => ({ ...current2, baseURL: event.target.value }))
+        }
+      ) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041C\u043E\u0434\u0435\u043B\u044C", hint: "whisper-1, gpt-4o-transcribe \u0438\u043B\u0438 \u0441\u0432\u043E\u044F", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "input",
+        {
+          className: "vs-input",
+          value: cloudForm.model,
+          placeholder: "whisper-1",
+          onChange: (event) => setCloudForm((current2) => ({ ...current2, model: event.target.value }))
+        }
+      ) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0421\u0441\u044B\u043B\u043A\u0430 \u043D\u0430 \u043A\u043B\u044E\u0447", hint: "\u0418\u043C\u044F \u0437\u0430\u043F\u0438\u0441\u0438 \u0432 credentials \u0438\u043B\u0438 env", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "input",
+        {
+          className: "vs-input",
+          value: cloudForm.apiKeyEnv,
+          placeholder: "OPENAI_API_KEY",
+          onChange: (event) => setCloudForm((current2) => ({ ...current2, apiKeyEnv: event.target.value }))
+        }
+      ) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041A\u043B\u044E\u0447 API", hint: "\u0425\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u0432 credentials, \u0432 \u0438\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441 \u043D\u0435 \u0432\u043E\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442\u0441\u044F", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "input",
+        {
+          className: "vs-input",
+          type: "password",
+          autoComplete: "off",
+          value: keyValue,
+          placeholder: "sk-\u2026",
+          onChange: (event) => setKeyValue(event.target.value)
+        }
+      ) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", "data-kind": "primary", onClick: () => void saveCloud(), children: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void saveKey(), children: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043A\u043B\u044E\u0447" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          "button",
+          {
+            type: "button",
+            className: "vs-btn",
+            onClick: () => {
+              const id = selectedProvider?.id ?? "cloud-openai";
+              void ctx.remote.speech.prepare(id, void 0).finally(() => void refresh());
+            },
+            children: "\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u0435"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => setCloudOpen(false), children: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C" })
+      ] }),
+      cloudNotice ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: cloudNotice }) : null
+    ] }) }) : null
   ] });
 }
 var DICTIONARY_RU = {

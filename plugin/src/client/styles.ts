@@ -43,6 +43,11 @@ export const CSS = `
 .vs-live-meter{height:10px;border-radius:5px;background:var(--dsw-alias-border-l1, #ffffff1a);overflow:hidden}
 .vs-live-meter>span{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#3fb950 0%,#d29922 70%,#e5484d 100%);transition:width .08s linear}
 .vs-live-db{font-size:12px;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary, #888)}
+.vs-overlay{position:fixed;inset:0;z-index:60;background:#00000080;display:flex;align-items:center;justify-content:center;padding:16px}
+.vs-modal{width:min(560px,94vw);max-height:86vh;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:12px;border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);background:var(--dsw-alias-bg-module-platform, #1b1d22);color:var(--dsw-alias-label-primary, inherit);box-shadow:0 24px 60px #00000066}
+.vs-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.vs-modal-head h4{margin:0;font-size:14px;font-weight:600}
+.vs-footer-action{display:flex;justify-content:flex-end;padding-top:4px}
 .vs-btn:disabled{opacity:.5;cursor:default}
 .vs-dict{display:flex;flex-direction:column;gap:6px}
 .vs-dict-row{display:grid;grid-template-columns:1fr 1fr auto;gap:6px}

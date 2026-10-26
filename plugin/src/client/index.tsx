@@ -1007,6 +1007,31 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
   const [cloudRevision, setCloudRevision] = useState<number | null>(null)
   const [keyValue, setKeyValue] = useState('')
   const [cloudNotice, setCloudNotice] = useState<string | null>(null)
+  const [cloudOpen, setCloudOpen] = useState(false)
+  const cloudDraftKey = 'dsh.voice-studio.cloudDraft'
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(cloudDraftKey)
+      if (!raw) return
+      const draft = JSON.parse(raw)
+      setCloudForm((current) => ({
+        baseURL: typeof draft.baseURL === 'string' ? draft.baseURL : current.baseURL,
+        model: typeof draft.model === 'string' ? draft.model : current.model,
+        apiKeyEnv: typeof draft.apiKeyEnv === 'string' ? draft.apiKeyEnv : current.apiKeyEnv,
+      }))
+    } catch {
+      /* malformed draft is ignored */
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(cloudDraftKey, JSON.stringify(cloudForm))
+    } catch {
+      /* storage is optional */
+    }
+  }, [cloudForm])
 
   const saveCloud = async () => {
     setCloudNotice(null)
@@ -1151,6 +1176,11 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         void refresh()
       })
   }, [selectedProvider?.id, selectedProvider?.preparation?.phase, refresh, ctx])
+
+  // Selecting the cloud provider opens its parameter window; the draft survives closing.
+  useEffect(() => {
+    if (selectedProvider?.location === 'cloud') setCloudOpen(true)
+  }, [selectedProvider?.id, selectedProvider?.location])
 
   const update = (recipe: (current: Settings) => Settings) => updateSettings(recipe)
   const noiseReductionOn = settings.rnnoise.enabled && settings.gate.enabled && settings.highpass.enabled
@@ -1665,6 +1695,75 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           Вернуть настройки по умолчанию
         </button>
       </div>
+      {cloudOpen ? (
+        <div className="vs-overlay" role="dialog" aria-modal="true" aria-label="Параметры облачного провайдера">
+          <div className="vs-modal">
+            <div className="vs-modal-head">
+              <h4>Параметры облачного провайдера</h4>
+              <button type="button" className="vs-round" aria-label="Закрыть" onClick={() => setCloudOpen(false)}>
+                <IconClose />
+              </button>
+            </div>
+            <p className="vs-hint">Всё введённое сохраняется как черновик и не теряется при закрытии окна.</p>
+            <Row label="Base URL" hint="https://api.openai.com/v1 или адрес своего сервера">
+              <input
+                className="vs-input"
+                value={cloudForm.baseURL}
+                placeholder="https://api.openai.com/v1"
+                onChange={(event) => setCloudForm((current) => ({ ...current, baseURL: event.target.value }))}
+              />
+            </Row>
+            <Row label="Модель" hint="whisper-1, gpt-4o-transcribe или своя">
+              <input
+                className="vs-input"
+                value={cloudForm.model}
+                placeholder="whisper-1"
+                onChange={(event) => setCloudForm((current) => ({ ...current, model: event.target.value }))}
+              />
+            </Row>
+            <Row label="Ссылка на ключ" hint="Имя записи в credentials или env">
+              <input
+                className="vs-input"
+                value={cloudForm.apiKeyEnv}
+                placeholder="OPENAI_API_KEY"
+                onChange={(event) => setCloudForm((current) => ({ ...current, apiKeyEnv: event.target.value }))}
+              />
+            </Row>
+            <Row label="Ключ API" hint="Хранится в credentials, в интерфейс не возвращается">
+              <input
+                className="vs-input"
+                type="password"
+                autoComplete="off"
+                value={keyValue}
+                placeholder="sk-…"
+                onChange={(event) => setKeyValue(event.target.value)}
+              />
+            </Row>
+            <div className="vs-controls">
+              <button type="button" className="vs-btn" data-kind="primary" onClick={() => void saveCloud()}>
+                Сохранить параметры
+              </button>
+              <button type="button" className="vs-btn" onClick={() => void saveKey()}>
+                Сохранить ключ
+              </button>
+              <button
+                type="button"
+                className="vs-btn"
+                onClick={() => {
+                  const id = selectedProvider?.id ?? 'cloud-openai'
+                  void ctx.remote.speech.prepare(id, undefined).finally(() => void refresh())
+                }}
+              >
+                Проверить соединение
+              </button>
+              <button type="button" className="vs-btn" onClick={() => setCloudOpen(false)}>
+                Закрыть
+              </button>
+            </div>
+            {cloudNotice ? <p className="vs-hint">{cloudNotice}</p> : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
