@@ -26,6 +26,9 @@ export const CSS = `
 .vs-section[open] summary::before{transform:rotate(90deg)}
 .vs-section summary h4{margin:0}
 .vs-hint{margin:0;font-size:12.5px;color:var(--dsw-alias-label-tertiary, #777)}
+.vs-hint[data-status="ok"]{color:#3fb950}
+.vs-hint[data-status="error"]{color:#e5484d}
+.vs-hint[data-status="pending"]{color:#d29922}
 .vs-line{display:flex;align-items:center;gap:8px;justify-content:space-between}
 .vs-line>label{flex:1;min-width:0}
 .vs-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
