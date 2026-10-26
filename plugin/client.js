@@ -2114,6 +2114,49 @@ function SettingsPage(props) {
     const id = selectedProvider?.id ?? catalog?.selection.providerId ?? "whisper-base";
     await prepare(id);
   };
+  const [cloudForm, setCloudForm] = (0, import_react3.useState)({ baseURL: "", model: "", apiKeyEnv: "" });
+  const [cloudRevision, setCloudRevision] = (0, import_react3.useState)(null);
+  const [keyValue, setKeyValue] = (0, import_react3.useState)("");
+  const [cloudNotice, setCloudNotice] = (0, import_react3.useState)(null);
+  const saveCloud = async () => {
+    setCloudNotice(null);
+    try {
+      const described = await ctx.remote.settings.describe();
+      const payload = described?.ok === false ? null : described?.ok ? described.value : described;
+      const list = Array.isArray(payload) ? payload : payload?.namespaces ?? payload?.entries ?? [];
+      const row = list.find((item) => (item?.ns ?? item?.id ?? item?.namespace) === "voice-studio");
+      const revision = row?.revision ?? cloudRevision ?? void 0;
+      const patch = {};
+      if (cloudForm.baseURL.trim() !== "") patch.baseURL = cloudForm.baseURL.trim();
+      if (cloudForm.model.trim() !== "") patch.model = cloudForm.model.trim();
+      if (cloudForm.apiKeyEnv.trim() !== "") patch.apiKeyEnv = cloudForm.apiKeyEnv.trim();
+      if (Object.keys(patch).length === 0) {
+        setCloudNotice("\u0417\u0430\u043F\u043E\u043B\u043D\u0438\u0442\u0435 \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u043D\u043E \u043F\u043E\u043B\u0435.");
+        return;
+      }
+      const result = await ctx.remote.settings.update("voice-studio", patch, revision);
+      if (result?.ok === false) throw new Error(catalogError(result));
+      setCloudRevision(row?.revision ?? null);
+      setCloudNotice("\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E. \u041E\u0431\u043B\u0430\u0447\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043F\u0440\u0438\u043C\u0435\u043D\u0438\u0442 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F \u0441\u0440\u0430\u0437\u0443.");
+    } catch (failure) {
+      setCloudNotice(`\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C: ${failure instanceof Error ? failure.message : String(failure)}`);
+    }
+  };
+  const saveKey = async () => {
+    const ref = (cloudForm.apiKeyEnv || "OPENAI_API_KEY").trim();
+    if (keyValue.trim() === "") {
+      setCloudNotice("\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043A\u043B\u044E\u0447 API.");
+      return;
+    }
+    try {
+      const result = await ctx.remote.credentials.set(ref, keyValue.trim());
+      if (result?.ok === false) throw new Error(catalogError(result));
+      setKeyValue("");
+      setCloudNotice(`\u041A\u043B\u044E\u0447 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0432 \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E\u043C \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435 DSH (${ref}); \u0432 \u0438\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441 \u043E\u043D \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435 \u0432\u043E\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442\u0441\u044F.`);
+    } catch (failure) {
+      setCloudNotice(`\u041A\u043B\u044E\u0447 \u043D\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D: ${failure instanceof Error ? failure.message : String(failure)}`);
+    }
+  };
   const [compareState, setCompareState] = (0, import_react3.useState)("idle");
   const [compareResults, setCompareResults] = (0, import_react3.useState)([]);
   const compareRecorder = (0, import_react3.useRef)(null);
@@ -2574,6 +2617,53 @@ function SettingsPage(props) {
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void refresh(), children: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u0441\u0442\u0430\u0442\u0443\u0441" })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0432\u0438\u0436\u043A\u0438 \u2014 Whisper (ONNX \u043D\u0430 CPU \u0447\u0435\u0440\u0435\u0437 sherpa-onnx, \u0432\u0445\u043E\u0434\u0438\u0442 \u0432 DSH). \u0420\u0443\u0441\u0441\u043A\u0438\u0439 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044F. \u041C\u043E\u0434\u0435\u043B\u044C \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u043A\u043D\u043E\u043F\u043A\u043E\u0439 \xAB\u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C\xBB: tiny \u2248 100 \u041C\u0411 (\u0431\u044B\u0441\u0442\u0440\u043E), base \u2248 155 \u041C\u0411, small \u2248 360 \u041C\u0411 (\u0442\u043E\u0447\u043D\u0435\u0435). \u0414\u043B\u044F \u043C\u0430\u043A\u0441\u0438\u043C\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u043A\u0430\u0447\u0435\u0441\u0442\u0432\u0430 \u043C\u043E\u0436\u043D\u043E \u0432\u044B\u0431\u0440\u0430\u0442\u044C \u043E\u0431\u043B\u0430\u0447\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440." })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041E\u0431\u043B\u0430\u0447\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "OpenAI-\u0441\u043E\u0432\u043C\u0435\u0441\u0442\u0438\u043C\u044B\u0439 API: \u043C\u043E\u0436\u043D\u043E \u0443\u043A\u0430\u0437\u0430\u0442\u044C \u0441\u0432\u043E\u0439 \u0441\u0435\u0440\u0432\u0435\u0440, \u043C\u043E\u0434\u0435\u043B\u044C \u0438 \u0441\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u043A\u043B\u044E\u0447. \u041A\u043B\u044E\u0447 \u0445\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u0432 \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E\u043C \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435 DSH (credentials) \u0438 \u043D\u0438\u043A\u043E\u0433\u0434\u0430 \u043D\u0435 \u0432\u043E\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442\u0441\u044F \u0432 \u0438\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441; \u0432 \u043A\u043E\u043D\u0444\u0438\u0433\u0435 \u043E\u0441\u0442\u0430\u0451\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u0438\u043C\u044F \u0441\u0441\u044B\u043B\u043A\u0438." }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "Base URL", hint: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 https://api.openai.com/v1 \u0438\u043B\u0438 \u0430\u0434\u0440\u0435\u0441 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0433\u043E shim-\u0441\u0435\u0440\u0432\u0435\u0440\u0430.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "input",
+        {
+          className: "vs-input",
+          value: cloudForm.baseURL,
+          placeholder: "https://api.openai.com/v1",
+          onChange: (event) => setCloudForm((current2) => ({ ...current2, baseURL: event.target.value }))
+        }
+      ) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041C\u043E\u0434\u0435\u043B\u044C", hint: "whisper-1, gpt-4o-transcribe \u0438\u043B\u0438 \u0438\u043C\u044F \u043C\u043E\u0434\u0435\u043B\u0438 \u043D\u0430 \u0432\u0430\u0448\u0435\u043C \u0441\u0435\u0440\u0432\u0435\u0440\u0435.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "input",
+        {
+          className: "vs-input",
+          value: cloudForm.model,
+          placeholder: "whisper-1",
+          onChange: (event) => setCloudForm((current2) => ({ ...current2, model: event.target.value }))
+        }
+      ) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0421\u0441\u044B\u043B\u043A\u0430 \u043D\u0430 \u043A\u043B\u044E\u0447", hint: "\u0418\u043C\u044F \u0437\u0430\u043F\u0438\u0441\u0438 \u0432 credentials \u0438\u043B\u0438 \u043F\u0435\u0440\u0435\u043C\u0435\u043D\u043D\u043E\u0439 \u043E\u043A\u0440\u0443\u0436\u0435\u043D\u0438\u044F.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "input",
+        {
+          className: "vs-input",
+          value: cloudForm.apiKeyEnv,
+          placeholder: "OPENAI_API_KEY",
+          onChange: (event) => setCloudForm((current2) => ({ ...current2, apiKeyEnv: event.target.value }))
+        }
+      ) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-controls", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", "data-kind": "primary", onClick: () => void saveCloud(), children: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Row, { label: "\u041A\u043B\u044E\u0447 API", hint: "\u041F\u0435\u0440\u0435\u0434\u0430\u0451\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u043D\u0430 \u0441\u0435\u0440\u0432\u0435\u0440; \u043F\u043E\u0441\u043B\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F \u043F\u043E\u043B\u0435 \u043E\u0447\u0438\u0449\u0430\u0435\u0442\u0441\u044F.", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          "input",
+          {
+            className: "vs-input",
+            type: "password",
+            autoComplete: "off",
+            value: keyValue,
+            placeholder: "sk-\u2026",
+            onChange: (event) => setKeyValue(event.target.value)
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void saveKey(), children: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043A\u043B\u044E\u0447" })
+      ] }),
+      cloudNotice ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: cloudNotice }) : null
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "vs-section", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0421\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F" }),

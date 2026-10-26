@@ -1,6 +1,7 @@
-# Voice Studio: speech service + authenticated Remote + local Whisper + cloud provider + UI.
-# Rows are id-scoped so this bundle can coexist with other layers, but do not enable the
-# shipped `dsh-experimental-voice-input-bundle` at the same time (it inserts the same service rows).
+# Voice Audio Rus: speech service + authenticated Remote + local Whisper + cloud provider + UI.
+# Rows are id-scoped; do not enable the shipped `dsh-experimental-voice-input-bundle` at the
+# same time (it inserts the same service rows). Cloud fields are volatile: edit them at runtime
+# in Plugins → Voice Audio Rus (saved into the profile patch by the settings service).
 - insert:
     - id: voice-studio-speech
       name: '@deepseek-ai/dsh-experimental-speech-to-text'
@@ -17,21 +18,18 @@
       config:
         enableLocal: true
         enableCloud: true
-        local:
-          models: [tiny, base, small]
-          dataRoot: !!js dshHomePath('speech-to-text', 'whisper')
-          modelOrigins:
-            - 'https://huggingface.co'
-            - 'https://hf-mirror.com'
-          threads: 4
-          fallbackLanguage: ru
-        cloud:
-          providerId: cloud-openai
-          title: 'Облако · OpenAI-совместимый'
-          baseURL: 'https://api.openai.com/v1'
-          model: whisper-1
-          apiKeyEnv: OPENAI_API_KEY
-          apiKey: ''
-          languages: [auto, ru, en]
-          prompt: ''
-          timeoutMs: 120000
+        localModels: [tiny, base, small]
+        localDataRoot: !!js dshHomePath('speech-to-text', 'whisper')
+        localThreads: 4
+        localOrigins:
+          - 'https://huggingface.co'
+          - 'https://hf-mirror.com'
+        fallbackLanguage: ru
+        providerId: cloud-openai
+        title: 'Облако · OpenAI-совместимый'
+        baseURL: 'https://api.openai.com/v1'
+        model: whisper-1
+        apiKeyEnv: OPENAI_API_KEY
+        languages: [auto, ru, en]
+        prompt: ''
+        timeoutMs: 120000

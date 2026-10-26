@@ -1,18 +1,12 @@
 /**
- * Host side of Voice Studio.
+ * Host side of Voice Audio Rus.
  *
- * Registers providers into the shared `speechToText` service:
- *  - `whisper-*` local recognizers on the sherpa-onnx runtime shipped with DSH
- *    (offline, Russian supported, models downloaded on demand);
- *  - one OpenAI-compatible cloud recognizer (optional, key stays on the Host).
- *
- * Config (row config in cordis.patch.yml):
- *   enableLocal / enableCloud  toggle provider families
- *   local.models               local rows to expose: tiny|base|small
- *   local.dataRoot             absolute cache directory for model files
- *   cloud.* / flat fields      see createProvider below
+ * Cloud (OpenAI-compatible) settings are declared as volatile Config fields, so
+ * they are editable at runtime through the profile settings service and take
+ * effect without a restart. The API key is never stored in the plugin config:
+ * only the *reference name* (`apiKeyEnv`) lives there; the secret itself is
+ * written through the credentials service (redacted reads) or an env var.
  */
-
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
@@ -22,61 +16,136 @@ import { createWhisperProvider } from './whisper-local.js'
 export const name = 'voiceStudio'
 export const inject = ['speechToText']
 
-const CLOUD_DEFAULTS = {
+let z = null
+try {
+  z = (await import('@deepseek-ai/schemastery')).default
+} catch {
+  /* Settings editing is optional: without schemastery the plugin still runs on row config. */
+}
+
+const DEFAULTS = {
+  enableLocal: true,
+  enableCloud: true,
+  localModels: ['tiny', 'base', 'small'],
+  localDataRoot: '',
+  localThreads: 4,
+  localOrigins: ['https://huggingface.co', 'https://hf-mirror.com'],
+  fallbackLanguage: 'ru',
   providerId: 'cloud-openai',
   title: 'Облако · OpenAI-совместимый',
   baseURL: 'https://api.openai.com/v1',
   model: 'whisper-1',
-  apiKey: '',
   apiKeyEnv: 'OPENAI_API_KEY',
   languages: ['auto', 'ru', 'en'],
   prompt: '',
-  timeoutMs: 120_000,
+  timeoutMs: 120000,
 }
 
-function optionString(value, fallback) {
-  return typeof value === 'string' ? value : fallback
-}
+export const Config = z
+  ? z.object({
+      enableLocal: z.boolean().default(true).volatile(),
+      enableCloud: z.boolean().default(true).volatile(),
+      localModels: z.array(z.string()).default(['tiny', 'base', 'small']).volatile(),
+      localDataRoot: z.string().default('').volatile(),
+      localThreads: z.natural().default(4).volatile(),
+      localOrigins: z.array(z.string()).default(['https://huggingface.co', 'https://hf-mirror.com']).volatile(),
+      fallbackLanguage: z.string().default('ru').volatile(),
+      providerId: z.string().default('cloud-openai').volatile(),
+      title: z.string().default('Облако · OpenAI-совместимый').volatile(),
+      baseURL: z.string().default('https://api.openai.com/v1').volatile(),
+      model: z.string().default('whisper-1').volatile(),
+      apiKeyEnv: z.string().default('OPENAI_API_KEY').volatile(),
+      languages: z.array(z.string()).default(['auto', 'ru', 'en']).volatile(),
+      prompt: z.string().default('').volatile(),
+      timeoutMs: z.natural().default(120000).volatile(),
+    })
+  : undefined
 
-function readKey(options) {
-  const literal = optionString(options.apiKey, '').trim()
-  if (literal !== '') return literal
-  const variable = optionString(options.apiKeyEnv, '').trim()
-  if (variable !== '' && typeof process !== 'undefined' && process.env) {
-    const value = process.env[variable]
-    if (typeof value === 'string' && value.trim() !== '') return value.trim()
+/** Read a volatile field (settings form) or a plain row-config value. */
+function live(value, fallback) {
+  if (value && typeof value.get === 'function') {
+    const current = value.get()
+    return current === undefined || current === null ? fallback : current
   }
-  return ''
+  return value === undefined || value === null ? fallback : value
 }
 
-/** OpenAI-compatible `/audio/transcriptions` provider. */
-export function createProvider(rawConfig = {}) {
-  const config = { ...CLOUD_DEFAULTS, ...rawConfig }
-  const languages = Array.isArray(config.languages)
-    ? config.languages.filter((item) => typeof item === 'string' && item !== '')
-    : CLOUD_DEFAULTS.languages
-  const baseURL = optionString(config.baseURL, CLOUD_DEFAULTS.baseURL).replace(/\/+$/u, '')
-  const model = optionString(config.model, CLOUD_DEFAULTS.model)
-  const prompt = optionString(config.prompt, '')
-  const timeoutMs = Number(config.timeoutMs) > 0 ? Number(config.timeoutMs) : CLOUD_DEFAULTS.timeoutMs
+function setting(config, key) {
+  const flat = live(config?.[key], undefined)
+  if (flat !== undefined) return flat
+  const cloud = config?.cloud && typeof config.cloud === 'object' ? config.cloud : {}
+  const local = config?.local && typeof config.local === 'object' ? config.local : {}
+  const nested = live(cloud[key], undefined) ?? live(local[key], undefined)
+  return nested !== undefined ? nested : DEFAULTS[key]
+}
 
+function fallbackDataRoot() {
+  const base = typeof process.env.DSH_HOME === 'string' && process.env.DSH_HOME !== ''
+    ? process.env.DSH_HOME
+    : join(homedir(), '.dsh')
+  return join(base, 'speech-to-text', 'whisper')
+}
+
+function logLine(message) {
+  try {
+    const file = join(fallbackDataRoot(), '_voice-studio.log')
+    mkdirSync(dirname(file), { recursive: true })
+    appendFileSync(file, `${new Date().toISOString()} ${message}\n`)
+  } catch {
+    /* logging must never break activation */
+  }
+}
+
+/**
+ * Resolve the secret for a reference name: DSH credentials first, then the
+ * process environment. The value never appears in configs, logs or UI.
+ */
+async function resolveApiKey(ctx, ref) {
+  const name = typeof ref === 'string' ? ref.trim() : ''
+  if (name === '') return ''
+  const credentials = typeof ctx.get === 'function' ? ctx.get('credentials') : undefined
+  if (credentials && typeof credentials.resolve === 'function') {
+    try {
+      const hit = await credentials.resolve(name)
+      const value = typeof hit === 'string' ? hit : hit?.value
+      if (typeof value === 'string' && value.trim() !== '') return value.trim()
+    } catch {
+      /* fall back to the environment */
+    }
+  }
+  const fromEnv = process.env[name]
+  return typeof fromEnv === 'string' ? fromEnv.trim() : ''
+}
+
+/** OpenAI-compatible `/audio/transcriptions` provider, reading live settings. */
+export function createProvider(config, ctx) {
+  let lastKeyError = ''
   return {
     info: {
-      id: optionString(config.providerId, CLOUD_DEFAULTS.providerId),
-      name: optionString(config.title, CLOUD_DEFAULTS.title),
+      id: setting(config, 'providerId'),
+      name: setting(config, 'title'),
       location: 'cloud',
-      languages: languages.length > 0 ? languages : CLOUD_DEFAULTS.languages,
+      languages: setting(config, 'languages'),
     },
     async transcribe(input, signal) {
-      const apiKey = readKey(config)
+      if (!input || (!(input.audio instanceof Uint8Array) && !Buffer.isBuffer(input.audio))) {
+        throw new Error('Voice Audio Rus: ожидался WAV-буфер')
+      }
+      const languages = setting(config, 'languages')
+      if (Array.isArray(languages) && typeof input.language === 'string' && input.language !== 'auto' && !languages.includes(input.language)) {
+        throw new Error(`Voice Audio Rus: язык «${input.language}» не поддерживается облачным провайдером`)
+      }
+      const apiKey = await resolveApiKey(ctx, setting(config, 'apiKeyEnv'))
       if (apiKey === '') {
+        lastKeyError = setting(config, 'apiKeyEnv')
         throw new Error(
-          `Voice Studio: не найден ключ API. Задайте переменную ${config.apiKeyEnv} или поле apiKey в конфиге плагина.`,
+          `Voice Audio Rus: ключ не найден. Сохраните его в настройках плагина (поле «Ключ API») для ссылки ${lastKeyError} или задайте переменную окружения.`,
         )
       }
-      if (!input || (!(input.audio instanceof Uint8Array) && !Buffer.isBuffer(input.audio))) {
-        throw new Error('Voice Studio: ожидался WAV-буфер')
-      }
+      const baseURL = String(setting(config, 'baseURL')).replace(/\/+$/u, '')
+      const model = setting(config, 'model')
+      const prompt = setting(config, 'prompt')
+      const timeoutMs = Math.max(1000, Number(setting(config, 'timeoutMs')) || DEFAULTS.timeoutMs)
       const audio = input.audio
       const audioSeconds = Math.max(0, (audio.length - 44) / 32000)
       const form = new FormData()
@@ -101,16 +170,16 @@ export function createProvider(rawConfig = {}) {
         })
       } catch (error) {
         if (error && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
-          throw new Error(`Voice Studio: сервер распознавания не ответил за ${Math.round(timeoutMs / 1000)} с`)
+          throw new Error(`Voice Audio Rus: сервер не ответил за ${Math.round(timeoutMs / 1000)} с`)
         }
-        throw new Error(`Voice Studio: запрос к ${baseURL} не удался — ${error instanceof Error ? error.message : String(error)}`)
+        throw new Error(`Voice Audio Rus: запрос к ${baseURL} не удался — ${error instanceof Error ? error.message : String(error)}`)
       }
       if (!response.ok) {
         const detail = await response.text().catch(() => '')
-        throw new Error(`Voice Studio: сервер вернул ${response.status}${detail ? ` — ${detail.slice(0, 300)}` : ''}`)
+        throw new Error(`Voice Audio Rus: сервер вернул ${response.status}${detail ? ` — ${detail.slice(0, 300)}` : ''}`)
       }
       const payload = await response.json().catch(() => {
-        throw new Error('Voice Studio: ответ сервера не является JSON')
+        throw new Error('Voice Audio Rus: ответ сервера не является JSON')
       })
       const text = typeof payload?.text === 'string' ? payload.text.trim() : ''
       return {
@@ -141,56 +210,34 @@ export function locateSherpa() {
   return null
 }
 
-function fallbackDataRoot() {
-  const base = typeof process.env.DSH_HOME === 'string' && process.env.DSH_HOME !== ''
-    ? process.env.DSH_HOME
-    : join(homedir(), '.dsh')
-  return join(base, 'speech-to-text', 'whisper')
-}
-
-/** Activation diagnostics: a file in the model cache, readable without DevTools. */
-function logLine(message) {
-  try {
-    const file = join(fallbackDataRoot(), '_voice-studio.log')
-    mkdirSync(dirname(file), { recursive: true })
-    appendFileSync(file, `${new Date().toISOString()} ${message}\n`)
-  } catch {
-    /* logging must never break activation */
-  }
-}
-
 export function apply(ctx, rowConfig = {}) {
   const config = rowConfig && typeof rowConfig === 'object' ? rowConfig : {}
-  const local = config.local && typeof config.local === 'object' ? config.local : {}
-  const cloud = config.cloud && typeof config.cloud === 'object' ? config.cloud : {}
   const providers = []
 
-  if (config.enableLocal !== false) {
-    const dataRoot = optionString(local.dataRoot, optionString(config.dataRoot, '')) || fallbackDataRoot()
-    const models = Array.isArray(local.models) && local.models.length > 0
-      ? local.models
-      : [local.model ?? config.model ?? 'base']
-    for (const model of models) {
+  if (live(config.enableLocal, true) !== false) {
+    const dataRoot = String(live(config.localDataRoot, '') || fallbackDataRoot())
+    const models = live(config.localModels, DEFAULTS.localModels)
+    for (const model of Array.isArray(models) ? models : DEFAULTS.localModels) {
       if (!['tiny', 'base', 'small'].includes(model)) continue
       providers.push(
         createWhisperProvider({
           model,
-          precision: local.precision ?? 'int8',
+          precision: 'int8',
           dataRoot: join(dataRoot, model),
-          modelOrigins: local.modelOrigins ?? config.modelOrigins,
-          threads: local.threads ?? 4,
-          languages: local.languages,
-          fallbackLanguage: local.fallbackLanguage ?? 'ru',
+          modelOrigins: live(config.localOrigins, DEFAULTS.localOrigins),
+          threads: live(config.localThreads, 4),
+          languages: live(config.languages, DEFAULTS.languages),
+          fallbackLanguage: live(config.fallbackLanguage, 'ru'),
         }),
       )
     }
   }
 
-  if (config.enableCloud !== false) {
-    providers.push(createProvider({ ...config, ...cloud }))
+  if (live(config.enableCloud, true) !== false) {
+    providers.push(createProvider(config, ctx))
   }
 
-  logLine(`apply local=${config.enableLocal !== false} cloud=${config.enableCloud !== false} providers=${providers.length}`)
+  logLine(`apply local=${live(config.enableLocal, true)} cloud=${live(config.enableCloud, true)} providers=${providers.length}`)
   if (providers.length === 0) return
   for (const provider of providers) {
     const operation = provider.preparation

@@ -975,6 +975,52 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
     await prepare(id)
   }
 
+  const [cloudForm, setCloudForm] = useState({ baseURL: '', model: '', apiKeyEnv: '' })
+  const [cloudRevision, setCloudRevision] = useState<number | null>(null)
+  const [keyValue, setKeyValue] = useState('')
+  const [cloudNotice, setCloudNotice] = useState<string | null>(null)
+
+  const saveCloud = async () => {
+    setCloudNotice(null)
+    try {
+      const described = await ctx.remote.settings.describe()
+      const payload = described?.ok === false ? null : described?.ok ? described.value : described
+      const list = Array.isArray(payload) ? payload : payload?.namespaces ?? payload?.entries ?? []
+      const row = list.find((item: any) => (item?.ns ?? item?.id ?? item?.namespace) === 'voice-studio')
+      const revision = row?.revision ?? cloudRevision ?? undefined
+      const patch: Record<string, string> = {}
+      if (cloudForm.baseURL.trim() !== '') patch.baseURL = cloudForm.baseURL.trim()
+      if (cloudForm.model.trim() !== '') patch.model = cloudForm.model.trim()
+      if (cloudForm.apiKeyEnv.trim() !== '') patch.apiKeyEnv = cloudForm.apiKeyEnv.trim()
+      if (Object.keys(patch).length === 0) {
+        setCloudNotice('Заполните хотя бы одно поле.')
+        return
+      }
+      const result = await ctx.remote.settings.update('voice-studio', patch, revision)
+      if (result?.ok === false) throw new Error(catalogError(result))
+      setCloudRevision(row?.revision ?? null)
+      setCloudNotice('Сохранено. Облачный провайдер применит значения сразу.')
+    } catch (failure) {
+      setCloudNotice(`Не удалось сохранить: ${failure instanceof Error ? failure.message : String(failure)}`)
+    }
+  }
+
+  const saveKey = async () => {
+    const ref = (cloudForm.apiKeyEnv || 'OPENAI_API_KEY').trim()
+    if (keyValue.trim() === '') {
+      setCloudNotice('Введите ключ API.')
+      return
+    }
+    try {
+      const result = await ctx.remote.credentials.set(ref, keyValue.trim())
+      if (result?.ok === false) throw new Error(catalogError(result))
+      setKeyValue('')
+      setCloudNotice(`Ключ сохранён в защищённом хранилище DSH (${ref}); в интерфейс он больше не возвращается.`)
+    } catch (failure) {
+      setCloudNotice(`Ключ не сохранён: ${failure instanceof Error ? failure.message : String(failure)}`)
+    }
+  }
+
   const [compareState, setCompareState] = useState<'idle' | 'recording' | 'running'>('idle')
   const [compareResults, setCompareResults] = useState<
     Array<{ id: string; name: string; text?: string; ms?: number; error?: string }>
@@ -1460,6 +1506,56 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         </p>
       </section>
 
+      <section className="vs-section">
+        <h4>Облачный провайдер</h4>
+        <p className="vs-hint">
+          OpenAI-совместимый API: можно указать свой сервер, модель и ссылку на ключ. Ключ хранится в защищённом
+          хранилище DSH (credentials) и никогда не возвращается в интерфейс; в конфиге остаётся только имя ссылки.
+        </p>
+        <Row label="Base URL" hint="Например https://api.openai.com/v1 или адрес локального shim-сервера.">
+          <input
+            className="vs-input"
+            value={cloudForm.baseURL}
+            placeholder="https://api.openai.com/v1"
+            onChange={(event) => setCloudForm((current) => ({ ...current, baseURL: event.target.value }))}
+          />
+        </Row>
+        <Row label="Модель" hint="whisper-1, gpt-4o-transcribe или имя модели на вашем сервере.">
+          <input
+            className="vs-input"
+            value={cloudForm.model}
+            placeholder="whisper-1"
+            onChange={(event) => setCloudForm((current) => ({ ...current, model: event.target.value }))}
+          />
+        </Row>
+        <Row label="Ссылка на ключ" hint="Имя записи в credentials или переменной окружения.">
+          <input
+            className="vs-input"
+            value={cloudForm.apiKeyEnv}
+            placeholder="OPENAI_API_KEY"
+            onChange={(event) => setCloudForm((current) => ({ ...current, apiKeyEnv: event.target.value }))}
+          />
+        </Row>
+        <div className="vs-controls">
+          <button type="button" className="vs-btn" data-kind="primary" onClick={() => void saveCloud()}>
+            Сохранить параметры
+          </button>
+        </div>
+        <Row label="Ключ API" hint="Передаётся только на сервер; после сохранения поле очищается.">
+          <input
+            className="vs-input"
+            type="password"
+            autoComplete="off"
+            value={keyValue}
+            placeholder="sk-…"
+            onChange={(event) => setKeyValue(event.target.value)}
+          />
+          <button type="button" className="vs-btn" onClick={() => void saveKey()}>
+            Сохранить ключ
+          </button>
+        </Row>
+        {cloudNotice ? <p className="vs-hint">{cloudNotice}</p> : null}
+      </section>
       <section className="vs-section">
         <h4>Сравнение распознавания</h4>
         <p className="vs-hint">

@@ -116,12 +116,16 @@ flowchart LR
 
 ## Облачный провайдер
 
-```powershell
-[Environment]::SetEnvironmentVariable('OPENAI_API_KEY', 'sk-...', 'User')
-```
+Настраивается прямо в плагине: **Плагины → Voice Audio Rus → «Облачный провайдер»**:
 
-Или переопределите строку `voice-studio` в профиле: `cloud.baseURL`, `cloud.model`,
-`cloud.apiKeyEnv` / `cloud.apiKey`.
+- **Base URL** — `https://api.openai.com/v1` или адрес своего shim-сервера;
+- **Модель** — `whisper-1`, `gpt-4o-transcribe` или имя модели на вашем сервере;
+- **Ссылка на ключ** — имя записи в хранилище (по умолчанию `OPENAI_API_KEY`);
+- **Ключ API** — сохраняется в защищённом хранилище DSH (credentials). В конфиг попадает
+  только имя ссылки, значение никогда не возвращается в интерфейс и не пишется в логи.
+
+Параметры применяются сразу, без перезапуска. Резервный путь — переменная окружения с тем
+же именем (`[Environment]::SetEnvironmentVariable('OPENAI_API_KEY', 'sk-...', 'User')`).
 
 ## Разработка
 
