@@ -3,7 +3,7 @@
 // installation directory, not from this plugin's node_modules.
 import { createWriteStream } from 'node:fs'
 import { mkdir, rename, rm, stat } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, dirname } from 'node:path'
 
@@ -88,7 +88,18 @@ export function createWhisperProvider(rawConfig = {}, deps = {}) {
   const loadSherpa = deps.loadSherpa ?? defaultLoadSherpa
   const providerId = typeof config.providerId === 'string' && config.providerId !== '' ? config.providerId : `whisper-${size}`
 
-  let state = { phase: 'unprepared' }
+  let state = (() => {
+    if (root === '') return { phase: 'unprepared' }
+    try {
+      const present = files.every((file) => {
+        const info = statSync(join(root, file))
+        return info.isFile() && info.size > 0
+      })
+      return present ? { phase: 'ready' } : { phase: 'unprepared' }
+    } catch {
+      return { phase: 'unprepared' }
+    }
+  })()
   const listeners = new Set()
   let task = null
   let recognizer = null

@@ -1121,8 +1121,8 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
 
   return (
     <div className="vs-root vs-card">
-      <section className="vs-section">
-        <h4>Модель распознавания</h4>
+      <details className="vs-section" open>
+        <summary><h4>Модель распознавания</h4></summary>
         {error ? <p className="vs-error">{error}</p> : null}
         {selectedProvider ? (
           <>
@@ -1147,9 +1147,9 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         ) : (
           <p className="vs-hint">Каталог провайдеров ещё не загружен…</p>
         )}
-      </section>
-      <section className="vs-section">
-        <h4>Микрофон</h4>
+      </details>
+      <details className="vs-section" open>
+        <summary><h4>Микрофон</h4></summary>
         <Row
           label="Устройство ввода"
           hint="Системный по умолчанию — «Автоматически». Список имён появляется после разрешения доступа."
@@ -1225,10 +1225,10 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             onChange={(value) => update((current) => ({ ...current, browser: { ...current.browser, autoGainControl: value } }))}
           />
         </Row>
-      </section>
+      </details>
 
-      <section className="vs-section">
-        <h4>Шумоподавление и обработка</h4>
+      <details className="vs-section">
+        <summary><h4>Шумоподавление и обработка</h4></summary>
         <Row label="RNNoise" hint="Нейросетевое шумоподавление Xiph в WebAssembly. Работает локально.">
           <Check checked={settings.rnnoise.enabled} onChange={(value) => update((current) => ({ ...current, rnnoise: { ...current.rnnoise, enabled: value } }))} />
         </Row>
@@ -1306,10 +1306,10 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         <Row label="Защита от перегрузки">
           <Check checked={settings.limiter} onChange={(value) => update((current) => ({ ...current, limiter: value }))} />
         </Row>
-      </section>
+      </details>
 
-      <section className="vs-section">
-        <h4>Тишина и горячие клавиши</h4>
+      <details className="vs-section">
+        <summary><h4>Тишина и горячие клавиши</h4></summary>
         <Row label="Авто-стоп по тишине" hint="Завершает запись, когда вы замолчали.">
           <Check checked={settings.vad.autoStop} onChange={(value) => update((current) => ({ ...current, vad: { ...current.vad, autoStop: value } }))} />
         </Row>
@@ -1353,10 +1353,10 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             <option value="toggle">Переключение</option>
           </select>
         </Row>
-      </section>
+      </details>
 
-      <section className="vs-section">
-        <h4>Текст</h4>
+      <details className="vs-section">
+        <summary><h4>Текст</h4></summary>
         <Row label="Авто-пунктуация" hint="Заглавные буквы и точка в конце.">
           <Check
             checked={settings.text.autoPunctuation}
@@ -1433,10 +1433,10 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             </button>
           </div>
         </div>
-      </section>
+      </details>
 
-      <section className="vs-section">
-        <h4>Распознавание</h4>
+      <details className="vs-section">
+        <summary><h4>Распознавание</h4></summary>
         {error ? <p className="vs-error">{error}</p> : null}
         <Row label="Провайдер" hint={selectedProvider ? `Статус: ${phaseText(selectedProvider)}` : 'Список недоступен'}>
           <select
@@ -1504,10 +1504,10 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           Модель скачивается один раз кнопкой «Подготовить модель»: tiny ≈ 100 МБ (быстро), base ≈ 155 МБ,
           small ≈ 360 МБ (точнее). Для максимального качества можно выбрать облачный провайдер.
         </p>
-      </section>
+      </details>
 
-      <section className="vs-section">
-        <h4>Облачный провайдер</h4>
+      <details className="vs-section">
+        <summary><h4>Облачный провайдер</h4></summary>
         <p className="vs-hint">
           OpenAI-совместимый API: можно указать свой сервер, модель и ссылку на ключ. Ключ хранится в защищённом
           хранилище DSH (credentials) и никогда не возвращается в интерфейс; в конфиге остаётся только имя ссылки.
@@ -1555,9 +1555,9 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           </button>
         </Row>
         {cloudNotice ? <p className="vs-hint">{cloudNotice}</p> : null}
-      </section>
-      <section className="vs-section">
-        <h4>Сравнение распознавания</h4>
+      </details>
+      <details className="vs-section">
+        <summary><h4>Сравнение распознавания</h4></summary>
         <p className="vs-hint">
           Запишите одну фразу — её распознают все готовые провайдеры независимо. Так видно, кто как слышит,
           насколько быстро отвечает и где ошибается.
@@ -1590,9 +1590,9 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             {item.text !== undefined ? <p>{item.text || '∅ (пусто)'}</p> : <p className="vs-error">{item.error ?? 'ошибка'}</p>}
           </div>
         ))}
-      </section>
-      <section className="vs-section">
-        <h4>История диктовок</h4>
+      </details>
+      <details className="vs-section">
+        <summary><h4>История диктовок</h4></summary>
         {history.length === 0 ? <p className="vs-hint">Пока пусто.</p> : null}
         <div className="vs-history">
           {history.map((entry) => (
@@ -1637,10 +1637,10 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             Очистить
           </button>
         </div>
-      </section>
+      </details>
 
-      <section className="vs-section">
-        <h4>Сброс</h4>
+      <details className="vs-section">
+        <summary><h4>Сброс</h4></summary>
         <div className="vs-controls">
           <button type="button" className="vs-btn" onClick={() => resetSettings()}>
             Вернуть настройки по умолчанию
@@ -1659,7 +1659,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             Сбросить только звук
           </button>
         </div>
-      </section>
+      </details>
     </div>
   )
 }

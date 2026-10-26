@@ -20,6 +20,11 @@ export const CSS = `
 .vs-card{display:flex;flex-direction:column;gap:16px;font-size:13px;line-height:1.45}
 .vs-section{display:flex;flex-direction:column;gap:8px;padding:12px;border:.5px solid var(--dsw-alias-border-l1, #ffffff14);border-radius:10px}
 .vs-section h4{margin:0;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary, inherit)}
+.vs-section summary{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;outline:none;user-select:none}
+.vs-section summary::-webkit-details-marker{display:none}
+.vs-section summary::before{content:'▸';font-size:11px;color:var(--dsw-alias-label-tertiary, #777);transition:transform .15s ease}
+.vs-section[open] summary::before{transform:rotate(90deg)}
+.vs-section summary h4{margin:0}
 .vs-hint{margin:0;font-size:12px;color:var(--dsw-alias-label-tertiary, #777)}
 .vs-line{display:flex;align-items:center;gap:8px;justify-content:space-between}
 .vs-line>label{flex:1;min-width:0}

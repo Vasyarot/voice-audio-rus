@@ -1232,6 +1232,11 @@ var CSS = `
 .vs-card{display:flex;flex-direction:column;gap:16px;font-size:13px;line-height:1.45}
 .vs-section{display:flex;flex-direction:column;gap:8px;padding:12px;border:.5px solid var(--dsw-alias-border-l1, #ffffff14);border-radius:10px}
 .vs-section h4{margin:0;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary, inherit)}
+.vs-section summary{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;outline:none;user-select:none}
+.vs-section summary::-webkit-details-marker{display:none}
+.vs-section summary::before{content:'\u25B8';font-size:11px;color:var(--dsw-alias-label-tertiary, #777);transition:transform .15s ease}
+.vs-section[open] summary::before{transform:rotate(90deg)}
+.vs-section summary h4{margin:0}
 .vs-hint{margin:0;font-size:12px;color:var(--dsw-alias-label-tertiary, #777)}
 .vs-line{display:flex;align-items:center;gap:8px;justify-content:space-between}
 .vs-line>label{flex:1;min-width:0}
@@ -2244,8 +2249,8 @@ function SettingsPage(props) {
     browser: { ...current2.browser, noiseSuppression: enabled ? false : current2.browser.noiseSuppression }
   }));
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-root vs-card", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041C\u043E\u0434\u0435\u043B\u044C \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", open: true, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041C\u043E\u0434\u0435\u043B\u044C \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F" }) }),
       error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-error", children: error }) : null,
       selectedProvider ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-line", children: [
@@ -2266,8 +2271,8 @@ function SettingsPage(props) {
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "tiny \u2248 100 \u041C\u0411 \xB7 base \u2248 155 \u041C\u0411 \xB7 small \u2248 360 \u041C\u0411. \u0421\u043C\u0435\u043D\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C \u2014 \u0432 \u0440\u0430\u0437\u0434\u0435\u043B\u0435 \xAB\u0420\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435\xBB \u043D\u0438\u0436\u0435." })
       ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041A\u0430\u0442\u0430\u043B\u043E\u0433 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u043E\u0432 \u0435\u0449\u0451 \u043D\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u2026" })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041C\u0438\u043A\u0440\u043E\u0444\u043E\u043D" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", open: true, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041C\u0438\u043A\u0440\u043E\u0444\u043E\u043D" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
         Row,
         {
@@ -2352,8 +2357,8 @@ function SettingsPage(props) {
         }
       ) })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0428\u0443\u043C\u043E\u043F\u043E\u0434\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u0438 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0430" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0428\u0443\u043C\u043E\u043F\u043E\u0434\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u0438 \u043E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0430" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "RNNoise", hint: "\u041D\u0435\u0439\u0440\u043E\u0441\u0435\u0442\u0435\u0432\u043E\u0435 \u0448\u0443\u043C\u043E\u043F\u043E\u0434\u0430\u0432\u043B\u0435\u043D\u0438\u0435 Xiph \u0432 WebAssembly. \u0420\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { checked: settings.rnnoise.enabled, onChange: (value) => update((current2) => ({ ...current2, rnnoise: { ...current2.rnnoise, enabled: value } })) }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0421\u0438\u043B\u0430 RNNoise", hint: "0% \u2014 \u0447\u0438\u0441\u0442\u044B\u0439 \u0441\u0438\u0433\u043D\u0430\u043B, 100% \u2014 \u043F\u043E\u043B\u043D\u043E\u0441\u0442\u044C\u044E \u043E\u0447\u0438\u0449\u0435\u043D\u043D\u044B\u0439.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         Slider,
@@ -2433,8 +2438,8 @@ function SettingsPage(props) {
       ) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0417\u0430\u0449\u0438\u0442\u0430 \u043E\u0442 \u043F\u0435\u0440\u0435\u0433\u0440\u0443\u0437\u043A\u0438", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { checked: settings.limiter, onChange: (value) => update((current2) => ({ ...current2, limiter: value })) }) })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0422\u0438\u0448\u0438\u043D\u0430 \u0438 \u0433\u043E\u0440\u044F\u0447\u0438\u0435 \u043A\u043B\u0430\u0432\u0438\u0448\u0438" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0422\u0438\u0448\u0438\u043D\u0430 \u0438 \u0433\u043E\u0440\u044F\u0447\u0438\u0435 \u043A\u043B\u0430\u0432\u0438\u0448\u0438" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0410\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E \u0442\u0438\u0448\u0438\u043D\u0435", hint: "\u0417\u0430\u0432\u0435\u0440\u0448\u0430\u0435\u0442 \u0437\u0430\u043F\u0438\u0441\u044C, \u043A\u043E\u0433\u0434\u0430 \u0432\u044B \u0437\u0430\u043C\u043E\u043B\u0447\u0430\u043B\u0438.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { checked: settings.vad.autoStop, onChange: (value) => update((current2) => ({ ...current2, vad: { ...current2.vad, autoStop: value } })) }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041F\u0430\u0443\u0437\u0430 \u0434\u043E \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         Slider,
@@ -2478,8 +2483,8 @@ function SettingsPage(props) {
         }
       ) })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0422\u0435\u043A\u0441\u0442" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0422\u0435\u043A\u0441\u0442" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0410\u0432\u0442\u043E-\u043F\u0443\u043D\u043A\u0442\u0443\u0430\u0446\u0438\u044F", hint: "\u0417\u0430\u0433\u043B\u0430\u0432\u043D\u044B\u0435 \u0431\u0443\u043A\u0432\u044B \u0438 \u0442\u043E\u0447\u043A\u0430 \u0432 \u043A\u043E\u043D\u0446\u0435.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         Check,
         {
@@ -2561,8 +2566,8 @@ function SettingsPage(props) {
         ] })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0420\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0420\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435" }) }),
       error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-error", children: error }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440", hint: selectedProvider ? `\u0421\u0442\u0430\u0442\u0443\u0441: ${phaseText(selectedProvider)}` : "\u0421\u043F\u0438\u0441\u043E\u043A \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         "select",
@@ -2618,8 +2623,8 @@ function SettingsPage(props) {
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0432\u0438\u0436\u043A\u0438 \u2014 Whisper (ONNX \u043D\u0430 CPU \u0447\u0435\u0440\u0435\u0437 sherpa-onnx, \u0432\u0445\u043E\u0434\u0438\u0442 \u0432 DSH). \u0420\u0443\u0441\u0441\u043A\u0438\u0439 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u0442\u0441\u044F. \u041C\u043E\u0434\u0435\u043B\u044C \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u043E\u0434\u0438\u043D \u0440\u0430\u0437 \u043A\u043D\u043E\u043F\u043A\u043E\u0439 \xAB\u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C\xBB: tiny \u2248 100 \u041C\u0411 (\u0431\u044B\u0441\u0442\u0440\u043E), base \u2248 155 \u041C\u0411, small \u2248 360 \u041C\u0411 (\u0442\u043E\u0447\u043D\u0435\u0435). \u0414\u043B\u044F \u043C\u0430\u043A\u0441\u0438\u043C\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u043A\u0430\u0447\u0435\u0441\u0442\u0432\u0430 \u043C\u043E\u0436\u043D\u043E \u0432\u044B\u0431\u0440\u0430\u0442\u044C \u043E\u0431\u043B\u0430\u0447\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440." })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041E\u0431\u043B\u0430\u0447\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u041E\u0431\u043B\u0430\u0447\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "OpenAI-\u0441\u043E\u0432\u043C\u0435\u0441\u0442\u0438\u043C\u044B\u0439 API: \u043C\u043E\u0436\u043D\u043E \u0443\u043A\u0430\u0437\u0430\u0442\u044C \u0441\u0432\u043E\u0439 \u0441\u0435\u0440\u0432\u0435\u0440, \u043C\u043E\u0434\u0435\u043B\u044C \u0438 \u0441\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u043A\u043B\u044E\u0447. \u041A\u043B\u044E\u0447 \u0445\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u0432 \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E\u043C \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435 DSH (credentials) \u0438 \u043D\u0438\u043A\u043E\u0433\u0434\u0430 \u043D\u0435 \u0432\u043E\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442\u0441\u044F \u0432 \u0438\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441; \u0432 \u043A\u043E\u043D\u0444\u0438\u0433\u0435 \u043E\u0441\u0442\u0430\u0451\u0442\u0441\u044F \u0442\u043E\u043B\u044C\u043A\u043E \u0438\u043C\u044F \u0441\u0441\u044B\u043B\u043A\u0438." }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "Base URL", hint: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 https://api.openai.com/v1 \u0438\u043B\u0438 \u0430\u0434\u0440\u0435\u0441 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0433\u043E shim-\u0441\u0435\u0440\u0432\u0435\u0440\u0430.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         "input",
@@ -2665,8 +2670,8 @@ function SettingsPage(props) {
       ] }),
       cloudNotice ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: cloudNotice }) : null
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0421\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0421\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u0417\u0430\u043F\u0438\u0448\u0438\u0442\u0435 \u043E\u0434\u043D\u0443 \u0444\u0440\u0430\u0437\u0443 \u2014 \u0435\u0451 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u044E\u0442 \u0432\u0441\u0435 \u0433\u043E\u0442\u043E\u0432\u044B\u0435 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u044B \u043D\u0435\u0437\u0430\u0432\u0438\u0441\u0438\u043C\u043E. \u0422\u0430\u043A \u0432\u0438\u0434\u043D\u043E, \u043A\u0442\u043E \u043A\u0430\u043A \u0441\u043B\u044B\u0448\u0438\u0442, \u043D\u0430\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0431\u044B\u0441\u0442\u0440\u043E \u043E\u0442\u0432\u0435\u0447\u0430\u0435\u0442 \u0438 \u0433\u0434\u0435 \u043E\u0448\u0438\u0431\u0430\u0435\u0442\u0441\u044F." }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -2693,8 +2698,8 @@ function SettingsPage(props) {
         item.text !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: item.text || "\u2205 (\u043F\u0443\u0441\u0442\u043E)" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-error", children: item.error ?? "\u043E\u0448\u0438\u0431\u043A\u0430" })
       ] }, item.id))
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0434\u0438\u043A\u0442\u043E\u0432\u043E\u043A" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0434\u0438\u043A\u0442\u043E\u0432\u043E\u043A" }) }),
       history.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041F\u043E\u043A\u0430 \u043F\u0443\u0441\u0442\u043E." }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-history", children: history.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-history-item", children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: entry.text }),
@@ -2731,8 +2736,8 @@ function SettingsPage(props) {
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => clearHistory(), disabled: history.length === 0, children: "\u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C" })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0421\u0431\u0440\u043E\u0441" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0421\u0431\u0440\u043E\u0441" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => resetSettings(), children: "\u0412\u0435\u0440\u043D\u0443\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
