@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/wave.svg" width="640" alt="Voice Audio Rus" />
+  <img src="docs/wave.svg" width="100%" alt="Voice Audio Rus" />
 </p>
 
 <h1 align="center">Voice Audio Rus</h1>
@@ -19,8 +19,6 @@
 </p>
 
 <p align="center">
-  <a href="https://vasyarot.github.io/voice-audio-rus/"><b>🌐 Web-версия страницы</b></a>
-  ·
   <a href="#быстрый-старт">Установка</a>
   ·
   <a href="docs/local-stt-options.md">Сравнение STT</a>
@@ -59,8 +57,18 @@
 
 ## Быстрый старт
 
+Выберите профиль, в котором работаете.
+
+**Настольная версия (Electron):**
+
 ```powershell
 dsh plugin --profile desktop add "file:D:\path\to\voice-audio-rus\plugin"
+```
+
+**Web-версия (`dsh web`):**
+
+```powershell
+dsh plugin --profile web add "file:D:\path\to\voice-audio-rus\plugin"
 ```
 
 Перезапустите DSH (правка клиента подхватывается и по `Ctrl+R`), откройте
