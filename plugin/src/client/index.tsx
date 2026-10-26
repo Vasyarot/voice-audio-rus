@@ -1282,7 +1282,6 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             ))}
           </select>
         </Row>
-        </div>
         <p className="vs-hint">
           Локальные движки — Whisper (ONNX на CPU через sherpa-onnx, входит в DSH). Русский поддерживается.
           Модель скачивается один раз кнопкой «Скачать все модели»: tiny ≈ 100 МБ (быстро), base ≈ 155 МБ,
