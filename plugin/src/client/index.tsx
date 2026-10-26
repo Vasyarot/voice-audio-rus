@@ -137,6 +137,17 @@ function statusFor(provider?: ProviderInfo): string {
   return provider.location === 'cloud' ? cloudStatusText(provider) : phaseText(provider)
 }
 
+function statusKind(provider?: ProviderInfo): 'ok' | 'error' | 'pending' {
+  if (!provider) return 'pending'
+  if (provider.location === 'cloud') {
+    const phase = provider.preparation?.phase ?? 'unprepared'
+    if (phase === 'ready') return 'ok'
+    if (phase === 'checking' || phase === 'loading' || phase === 'waking') return 'pending'
+    return 'error'
+  }
+  return provider.preparation?.phase === 'ready' ? 'ok' : 'pending'
+}
+
 function providerLabel(provider: ProviderInfo): string {
   if (provider.name && provider.name.trim() !== '') return provider.name
   if (provider.location === 'host-local') return 'Локально · встроенный движок'
@@ -1197,16 +1208,10 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         {selectedProvider ? (
           <>
             <div className="vs-line">
-              <label>
-                {providerLabel(selectedProvider)}
-                <div className="vs-hint">Статус: {statusFor(selectedProvider)}</div>
-              </label>
+              <label>{providerLabel(selectedProvider)}</label>
               <span className="vs-controls">
                 <button type="button" className="vs-btn" onClick={() => void prepareAll()}>
                   Скачать все модели
-                </button>
-                <button type="button" className="vs-btn" onClick={() => setCloudOpen(true)}>
-                  Редактировать модель
                 </button>
                 <button type="button" className="vs-btn" onClick={() => void refresh()}>
                   Обновить
@@ -1246,6 +1251,16 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             ))}
           </select>
         </Row>
+        <div className="vs-line">
+          <span className="vs-hint" data-status={statusKind(selectedProvider)}>
+            Статус: {statusFor(selectedProvider)}
+          </span>
+          {selectedProvider?.location === 'cloud' ? (
+            <button type="button" className="vs-btn" onClick={() => setCloudOpen(true)}>
+              Редактировать модель
+            </button>
+          ) : null}
+        </div>
         <Row
           label="Язык"
           hint={

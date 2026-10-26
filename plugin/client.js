@@ -1404,6 +1404,16 @@ function statusFor(provider) {
   if (!provider) return "\u043D\u0435\u0442 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430";
   return provider.location === "cloud" ? cloudStatusText(provider) : phaseText(provider);
 }
+function statusKind(provider) {
+  if (!provider) return "pending";
+  if (provider.location === "cloud") {
+    const phase = provider.preparation?.phase ?? "unprepared";
+    if (phase === "ready") return "ok";
+    if (phase === "checking" || phase === "loading" || phase === "waking") return "pending";
+    return "error";
+  }
+  return provider.preparation?.phase === "ready" ? "ok" : "pending";
+}
 function providerLabel(provider) {
   if (provider.name && provider.name.trim() !== "") return provider.name;
   if (provider.location === "host-local") return "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E \xB7 \u0432\u0441\u0442\u0440\u043E\u0435\u043D\u043D\u044B\u0439 \u0434\u0432\u0438\u0436\u043E\u043A";
@@ -2319,16 +2329,9 @@ function SettingsPage(props) {
       error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-error", children: error }) : null,
       selectedProvider ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-line", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { children: [
-            providerLabel(selectedProvider),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-hint", children: [
-              "\u0421\u0442\u0430\u0442\u0443\u0441: ",
-              statusFor(selectedProvider)
-            ] })
-          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: providerLabel(selectedProvider) }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-controls", children: [
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void prepareAll(), children: "\u0421\u043A\u0430\u0447\u0430\u0442\u044C \u0432\u0441\u0435 \u043C\u043E\u0434\u0435\u043B\u0438" }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => setCloudOpen(true), children: "\u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C" }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void refresh(), children: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C" })
           ] })
         ] }),
@@ -2352,6 +2355,13 @@ function SettingsPage(props) {
           children: providers.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: item.id, children: providerLabel(item) }, item.id))
         }
       ) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-line", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-hint", "data-status": statusKind(selectedProvider), children: [
+          "\u0421\u0442\u0430\u0442\u0443\u0441: ",
+          statusFor(selectedProvider)
+        ] }),
+        selectedProvider?.location === "cloud" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => setCloudOpen(true), children: "\u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C" }) : null
+      ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         Row,
         {
