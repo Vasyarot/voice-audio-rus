@@ -734,7 +734,6 @@ function PreparationProgress(props: { provider?: ProviderInfo }) {
   const preparation = props.provider?.preparation
   if (!preparation) return null
   const phase = preparation.phase ?? 'ready'
-  if (phase === 'failed') return <p className="vs-error">{preparation.message ?? 'Не удалось подготовить модель'}</p>
   if (phase === 'downloading') {
     const total = preparation.totalBytes ?? 0
     const done = preparation.completedBytes ?? 0
@@ -1177,11 +1176,6 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
       })
   }, [selectedProvider?.id, selectedProvider?.preparation?.phase, refresh, ctx])
 
-  // Selecting the cloud provider opens its parameter window; the draft survives closing.
-  useEffect(() => {
-    if (selectedProvider?.location === 'cloud') setCloudOpen(true)
-  }, [selectedProvider?.id, selectedProvider?.location])
-
   const update = (recipe: (current: Settings) => Settings) => updateSettings(recipe)
   const noiseReductionOn = settings.rnnoise.enabled && settings.gate.enabled && settings.highpass.enabled
   const toggleNoiseReduction = (enabled: boolean) =>
@@ -1207,11 +1201,11 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
                 <div className="vs-hint">Статус: {statusFor(selectedProvider)}</div>
               </label>
               <span className="vs-controls">
-                <button type="button" className="vs-btn" data-kind="primary" disabled={busy} onClick={() => void prepareSelected()}>
-                  Скачать / подготовить
-                </button>
                 <button type="button" className="vs-btn" onClick={() => void prepareAll()}>
                   Скачать все модели
+                </button>
+                <button type="button" className="vs-btn" onClick={() => setCloudOpen(true)}>
+                  Редактировать модель
                 </button>
                 <button type="button" className="vs-btn" onClick={() => void refresh()}>
                   Обновить
@@ -1246,7 +1240,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           >
             {providers.map((item) => (
               <option key={item.id} value={item.id}>
-                {providerLabel(item)} — {statusFor(item)}
+                {providerLabel(item)}
               </option>
             ))}
           </select>

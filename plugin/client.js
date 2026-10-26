@@ -1907,7 +1907,6 @@ function PreparationProgress(props) {
   const preparation = props.provider?.preparation;
   if (!preparation) return null;
   const phase = preparation.phase ?? "ready";
-  if (phase === "failed") return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-error", children: preparation.message ?? "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C" });
   if (phase === "downloading") {
     const total = preparation.totalBytes ?? 0;
     const done = preparation.completedBytes ?? 0;
@@ -2303,9 +2302,6 @@ function SettingsPage(props) {
       void refresh();
     });
   }, [selectedProvider?.id, selectedProvider?.preparation?.phase, refresh, ctx]);
-  (0, import_react3.useEffect)(() => {
-    if (selectedProvider?.location === "cloud") setCloudOpen(true);
-  }, [selectedProvider?.id, selectedProvider?.location]);
   const update = (recipe) => updateSettings(recipe);
   const noiseReductionOn = settings.rnnoise.enabled && settings.gate.enabled && settings.highpass.enabled;
   const toggleNoiseReduction = (enabled) => update((current2) => ({
@@ -2330,8 +2326,8 @@ function SettingsPage(props) {
             ] })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-controls", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", "data-kind": "primary", disabled: busy, onClick: () => void prepareSelected(), children: "\u0421\u043A\u0430\u0447\u0430\u0442\u044C / \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C" }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void prepareAll(), children: "\u0421\u043A\u0430\u0447\u0430\u0442\u044C \u0432\u0441\u0435 \u043C\u043E\u0434\u0435\u043B\u0438" }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => setCloudOpen(true), children: "\u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u044C" }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => void refresh(), children: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C" })
           ] })
         ] }),
@@ -2352,11 +2348,7 @@ function SettingsPage(props) {
             update((current2) => ({ ...current2, providerId, language }));
             void configure({ providerId, language });
           },
-          children: providers.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("option", { value: item.id, children: [
-            providerLabel(item),
-            " \u2014 ",
-            statusFor(item)
-          ] }, item.id))
+          children: providers.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: item.id, children: providerLabel(item) }, item.id))
         }
       ) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
