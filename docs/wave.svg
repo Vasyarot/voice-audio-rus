@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="100%" height="auto" role="img" aria-label="Voice Audio Rus — анимированный эквалайзер">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="100%" height="auto" role="img" aria-label="Voice Audio Rus — анимированный баннер">
   <defs>
     <linearGradient id="vabg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#080a12"/>
@@ -10,6 +10,15 @@
       <stop offset="0.5" stop-color="#7b3ff2"/>
       <stop offset="1" stop-color="#6ff0a1"/>
     </linearGradient>
+    <linearGradient id="vaicon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f6bff"/>
+      <stop offset="1" stop-color="#7b3ff2"/>
+    </linearGradient>
+    <linearGradient id="vatext" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.55" stop-color="#a9c1ff"/>
+      <stop offset="1" stop-color="#7cf0ad"/>
+    </linearGradient>
     <radialGradient id="vaglowA">
       <stop offset="0" stop-color="#2f6bff" stop-opacity=".55"/>
       <stop offset="1" stop-color="#2f6bff" stop-opacity="0"/>
@@ -19,58 +28,79 @@
       <stop offset="1" stop-color="#7b3ff2" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="vaglowC">
-      <stop offset="0" stop-color="#3fb950" stop-opacity=".32"/>
+      <stop offset="0" stop-color="#3fb950" stop-opacity=".3"/>
       <stop offset="1" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vglowIcon">
+      <stop offset="0" stop-color="#6a8cff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#6a8cff" stop-opacity="0"/>
     </radialGradient>
   </defs>
   <style>
     .vb { fill: url(#vabar); transform-box: fill-box; transform-origin: center bottom; animation: vaeq 1.6s ease-in-out infinite; opacity: .95; }
     .vg { animation: vafloat 9s ease-in-out infinite; }
+    .vi { animation: vapulse 3.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center center; }
+    .vh { animation: vahalo 3.2s ease-in-out infinite; }
     @keyframes vaeq { 0%, 100% { transform: scaleY(.16); } 50% { transform: scaleY(1); } }
     @keyframes vafloat { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(18px, -12px); } }
-    @media (prefers-reduced-motion: reduce) { .vb, .vg { animation: none; } }
+    @keyframes vapulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+    @keyframes vahalo { 0%, 100% { opacity: .45; } 50% { opacity: .85; } }
+    @media (prefers-reduced-motion: reduce) { .vb, .vg, .vi, .vh { animation: none; } }
   </style>
-  <rect width="1200" height="300" rx="26" fill="url(#vabg)"/>
+  <rect width="1200" height="320" rx="26" fill="url(#vabg)"/>
   <ellipse class="vg" cx="220" cy="40" rx="430" ry="220" fill="url(#vaglowA)"/>
-  <ellipse class="vg" cx="980" cy="270" rx="470" ry="240" fill="url(#vaglowB)" style="animation-duration:12s"/>
-  <ellipse class="vg" cx="600" cy="150" rx="390" ry="190" fill="url(#vaglowC)" style="animation-duration:15s"/>
-  <text x="600" y="46" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Arial, sans-serif" font-size="17" letter-spacing="4" fill="#93a7cc">VOICE AUDIO RUS · РУССКИЙ — ПРИОРИТЕТ</text>
+  <ellipse class="vg" cx="980" cy="280" rx="470" ry="240" fill="url(#vaglowB)" style="animation-duration:12s"/>
+  <ellipse class="vg" cx="600" cy="160" rx="390" ry="190" fill="url(#vaglowC)" style="animation-duration:15s"/>
+  <circle class="vh" cx="600" cy="52" r="62" fill="url(#vglowIcon)"/>
+  <g transform="translate(574,26)">
+    <g class="vi">
+      <g transform="scale(0.8125)">
+        <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#vaicon)"/>
+        <rect x="26" y="13" width="12" height="24" rx="6" fill="#ffffff"/>
+        <path d="M20 33a12 12 0 0 0 24 0" fill="none" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round"/>
+        <path d="M32 45v7" fill="none" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round"/>
+        <path d="M23 52h18" fill="none" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round"/>
+        <path d="M13 27c-2 3-2 7 0 10M51 27c2 3 2 7 0 10" fill="none" stroke="#ffffff" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g>
+  <text x="600" y="130" text-anchor="middle" font-family="ui-sans-serif, system-ui, Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" letter-spacing="7" fill="url(#vatext)">VOICE AUDIO RUS</text>
   <g>
-    <rect class="vb" x="24"   y="72" width="16" height="156" rx="8" style="animation-delay:-0.00s"/>
-    <rect class="vb" x="56"   y="72" width="16" height="156" rx="8" style="animation-delay:-0.18s"/>
-    <rect class="vb" x="88"   y="72" width="16" height="156" rx="8" style="animation-delay:-0.36s"/>
-    <rect class="vb" x="120"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.54s"/>
-    <rect class="vb" x="152"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.72s"/>
-    <rect class="vb" x="184"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.90s"/>
-    <rect class="vb" x="216"  y="72" width="16" height="156" rx="8" style="animation-delay:-1.08s"/>
-    <rect class="vb" x="248"  y="72" width="16" height="156" rx="8" style="animation-delay:-1.26s"/>
-    <rect class="vb" x="280"  y="72" width="16" height="156" rx="8" style="animation-delay:-1.44s"/>
-    <rect class="vb" x="312"  y="72" width="16" height="156" rx="8" style="animation-delay:-1.62s"/>
-    <rect class="vb" x="344"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.09s"/>
-    <rect class="vb" x="376"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.27s"/>
-    <rect class="vb" x="408"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.45s"/>
-    <rect class="vb" x="440"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.63s"/>
-    <rect class="vb" x="472"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.81s"/>
-    <rect class="vb" x="504"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.99s"/>
-    <rect class="vb" x="536"  y="72" width="16" height="156" rx="8" style="animation-delay:-1.17s"/>
-    <rect class="vb" x="568"  y="72" width="16" height="156" rx="8" style="animation-delay:-1.35s"/>
-    <rect class="vb" x="600"  y="72" width="16" height="156" rx="8" style="animation-delay:-1.53s"/>
-    <rect class="vb" x="632"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.05s"/>
-    <rect class="vb" x="664"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.23s"/>
-    <rect class="vb" x="696"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.41s"/>
-    <rect class="vb" x="728"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.59s"/>
-    <rect class="vb" x="760"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.77s"/>
-    <rect class="vb" x="792"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.95s"/>
-    <rect class="vb" x="824"  y="72" width="16" height="156" rx="8" style="animation-delay:-1.13s"/>
-    <rect class="vb" x="856"  y="72" width="16" height="156" rx="8" style="animation-delay:-1.31s"/>
-    <rect class="vb" x="888"  y="72" width="16" height="156" rx="8" style="animation-delay:-1.49s"/>
-    <rect class="vb" x="920"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.14s"/>
-    <rect class="vb" x="952"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.32s"/>
-    <rect class="vb" x="984"  y="72" width="16" height="156" rx="8" style="animation-delay:-0.50s"/>
-    <rect class="vb" x="1016" y="72" width="16" height="156" rx="8" style="animation-delay:-0.68s"/>
-    <rect class="vb" x="1048" y="72" width="16" height="156" rx="8" style="animation-delay:-0.86s"/>
-    <rect class="vb" x="1080" y="72" width="16" height="156" rx="8" style="animation-delay:-1.04s"/>
-    <rect class="vb" x="1112" y="72" width="16" height="156" rx="8" style="animation-delay:-1.22s"/>
-    <rect class="vb" x="1144" y="72" width="16" height="156" rx="8" style="animation-delay:-1.40s"/>
+    <rect class="vb" x="24"   y="168" width="16" height="132" rx="8" style="animation-delay:-0.00s"/>
+    <rect class="vb" x="56"   y="168" width="16" height="132" rx="8" style="animation-delay:-0.18s"/>
+    <rect class="vb" x="88"   y="168" width="16" height="132" rx="8" style="animation-delay:-0.36s"/>
+    <rect class="vb" x="120"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.54s"/>
+    <rect class="vb" x="152"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.72s"/>
+    <rect class="vb" x="184"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.90s"/>
+    <rect class="vb" x="216"  y="168" width="16" height="132" rx="8" style="animation-delay:-1.08s"/>
+    <rect class="vb" x="248"  y="168" width="16" height="132" rx="8" style="animation-delay:-1.26s"/>
+    <rect class="vb" x="280"  y="168" width="16" height="132" rx="8" style="animation-delay:-1.44s"/>
+    <rect class="vb" x="312"  y="168" width="16" height="132" rx="8" style="animation-delay:-1.62s"/>
+    <rect class="vb" x="344"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.09s"/>
+    <rect class="vb" x="376"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.27s"/>
+    <rect class="vb" x="408"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.45s"/>
+    <rect class="vb" x="440"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.63s"/>
+    <rect class="vb" x="472"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.81s"/>
+    <rect class="vb" x="504"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.99s"/>
+    <rect class="vb" x="536"  y="168" width="16" height="132" rx="8" style="animation-delay:-1.17s"/>
+    <rect class="vb" x="568"  y="168" width="16" height="132" rx="8" style="animation-delay:-1.35s"/>
+    <rect class="vb" x="600"  y="168" width="16" height="132" rx="8" style="animation-delay:-1.53s"/>
+    <rect class="vb" x="632"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.05s"/>
+    <rect class="vb" x="664"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.23s"/>
+    <rect class="vb" x="696"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.41s"/>
+    <rect class="vb" x="728"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.59s"/>
+    <rect class="vb" x="760"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.77s"/>
+    <rect class="vb" x="792"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.95s"/>
+    <rect class="vb" x="824"  y="168" width="16" height="132" rx="8" style="animation-delay:-1.13s"/>
+    <rect class="vb" x="856"  y="168" width="16" height="132" rx="8" style="animation-delay:-1.31s"/>
+    <rect class="vb" x="888"  y="168" width="16" height="132" rx="8" style="animation-delay:-1.49s"/>
+    <rect class="vb" x="920"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.14s"/>
+    <rect class="vb" x="952"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.32s"/>
+    <rect class="vb" x="984"  y="168" width="16" height="132" rx="8" style="animation-delay:-0.50s"/>
+    <rect class="vb" x="1016" y="168" width="16" height="132" rx="8" style="animation-delay:-0.68s"/>
+    <rect class="vb" x="1048" y="168" width="16" height="132" rx="8" style="animation-delay:-0.86s"/>
+    <rect class="vb" x="1080" y="168" width="16" height="132" rx="8" style="animation-delay:-1.04s"/>
+    <rect class="vb" x="1112" y="168" width="16" height="132" rx="8" style="animation-delay:-1.22s"/>
+    <rect class="vb" x="1144" y="168" width="16" height="132" rx="8" style="animation-delay:-1.40s"/>
   </g>
 </svg>
