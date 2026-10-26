@@ -151,7 +151,7 @@ const settings = registered.find((item) => item.options?.name === 'plugins.bundl
 const settingsHtml = renderToString(
   React.createElement(settings.component, { voiceStudio: { ctx }, t: (key) => key }),
 )
-for (const marker of ['Микрофон', 'Шумоподавление и обработка', 'История диктовок']) {
+for (const marker of ['Микрофон', 'Шумоподавление', 'Обработка звука', 'История диктовок']) {
   if (!settingsHtml.includes(marker)) throw new Error(`settings page missing section: ${marker}`)
 }
 
