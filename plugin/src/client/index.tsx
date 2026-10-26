@@ -1018,6 +1018,8 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
   const [cloudRevision, setCloudRevision] = useState<number | null>(null)
   const [keyValue, setKeyValue] = useState('')
   const [cloudNotice, setCloudNotice] = useState<string | null>(null)
+  const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [modelsNotice, setModelsNotice] = useState<string | null>(null)
   const [cloudOpen, setCloudOpen] = useState(false)
   const cloudDraftKey = 'dsh.voice-studio.cloudDraft'
 
@@ -1078,10 +1080,42 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
     try {
       const result = await ctx.remote.credentials.set(ref, keyValue.trim())
       if (result?.ok === false) throw new Error(catalogError(result))
+      await loadModels()
       setKeyValue('')
       setCloudNotice(`Ключ сохранён в защищённом хранилище DSH (${ref}); в интерфейс он больше не возвращается.`)
     } catch (failure) {
       setCloudNotice(`Ключ не сохранён: ${failure instanceof Error ? failure.message : String(failure)}`)
+    }
+  }
+
+  const loadModels = async () => {
+    const base = cloudForm.baseURL.trim().replace(/\/+$/u, '')
+    const key = keyValue.trim()
+    setModelsNotice(null)
+    if (base === '') {
+      setModelsNotice('Укажите Base URL')
+      return
+    }
+    if (key === '') {
+      setModelsNotice('Введите ключ API, чтобы получить список моделей')
+      return
+    }
+    try {
+      const response = await fetch(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const payload = await response.json()
+      const raw = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : []
+      const list = raw
+        .map((item: any) => (typeof item === 'string' ? item : item?.id ?? item?.name))
+        .filter((value: any): value is string => typeof value === 'string' && value !== '')
+      if (list.length === 0) throw new Error('сервер вернул пустой список')
+      setModelOptions(list)
+      if (cloudForm.model.trim() === '') setCloudForm((current) => ({ ...current, model: list[0] }))
+      setModelsNotice(`Найдено моделей: ${list.length}`)
+    } catch (failure) {
+      setModelsNotice(
+        `Не удалось получить модели: ${failure instanceof Error ? failure.message : String(failure)}. Введите модель вручную.`,
+      )
     }
   }
 
@@ -1715,6 +1749,26 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
                 onChange={(event) => setCloudForm((current) => ({ ...current, model: event.target.value }))}
               />
             </Row>
+            {modelOptions.length > 0 ? (
+              <Row label="Модели из API" hint="Список получен по вашему ключу">
+                <select
+                  className="vs-select"
+                  value={cloudForm.model}
+                  onChange={(event) => setCloudForm((current) => ({ ...current, model: event.target.value }))}
+                >
+                  {modelOptions.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </Row>
+            ) : null}
+            {modelsNotice ? (
+              <p className="vs-hint" data-status={modelOptions.length > 0 ? 'ok' : 'error'}>
+                {modelsNotice}
+              </p>
+            ) : null}
             <Row label="Ссылка на ключ" hint="Имя записи в credentials или env">
               <input
                 className="vs-input"
@@ -1746,9 +1800,10 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
                 onClick={() => {
                   const id = selectedProvider?.id ?? 'cloud-openai'
                   void ctx.remote.speech.prepare(id, undefined).finally(() => void refresh())
+                  void loadModels()
                 }}
               >
-                Проверить соединение
+                Проверить и загрузить модели
               </button>
               <button type="button" className="vs-btn" onClick={() => setCloudOpen(false)}>
                 Закрыть

@@ -2168,6 +2168,8 @@ function SettingsPage(props) {
   const [cloudRevision, setCloudRevision] = (0, import_react3.useState)(null);
   const [keyValue, setKeyValue] = (0, import_react3.useState)("");
   const [cloudNotice, setCloudNotice] = (0, import_react3.useState)(null);
+  const [modelOptions, setModelOptions] = (0, import_react3.useState)([]);
+  const [modelsNotice, setModelsNotice] = (0, import_react3.useState)(null);
   const [cloudOpen, setCloudOpen] = (0, import_react3.useState)(false);
   const cloudDraftKey = "dsh.voice-studio.cloudDraft";
   (0, import_react3.useEffect)(() => {
@@ -2222,10 +2224,39 @@ function SettingsPage(props) {
     try {
       const result = await ctx.remote.credentials.set(ref, keyValue.trim());
       if (result?.ok === false) throw new Error(catalogError(result));
+      await loadModels();
       setKeyValue("");
       setCloudNotice(`\u041A\u043B\u044E\u0447 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0432 \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E\u043C \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435 DSH (${ref}); \u0432 \u0438\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441 \u043E\u043D \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435 \u0432\u043E\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442\u0441\u044F.`);
     } catch (failure) {
       setCloudNotice(`\u041A\u043B\u044E\u0447 \u043D\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D: ${failure instanceof Error ? failure.message : String(failure)}`);
+    }
+  };
+  const loadModels = async () => {
+    const base = cloudForm.baseURL.trim().replace(/\/+$/u, "");
+    const key = keyValue.trim();
+    setModelsNotice(null);
+    if (base === "") {
+      setModelsNotice("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 Base URL");
+      return;
+    }
+    if (key === "") {
+      setModelsNotice("\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043A\u043B\u044E\u0447 API, \u0447\u0442\u043E\u0431\u044B \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0441\u043F\u0438\u0441\u043E\u043A \u043C\u043E\u0434\u0435\u043B\u0435\u0439");
+      return;
+    }
+    try {
+      const response = await fetch(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      const raw = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : [];
+      const list = raw.map((item) => typeof item === "string" ? item : item?.id ?? item?.name).filter((value) => typeof value === "string" && value !== "");
+      if (list.length === 0) throw new Error("\u0441\u0435\u0440\u0432\u0435\u0440 \u0432\u0435\u0440\u043D\u0443\u043B \u043F\u0443\u0441\u0442\u043E\u0439 \u0441\u043F\u0438\u0441\u043E\u043A");
+      setModelOptions(list);
+      if (cloudForm.model.trim() === "") setCloudForm((current2) => ({ ...current2, model: list[0] }));
+      setModelsNotice(`\u041D\u0430\u0439\u0434\u0435\u043D\u043E \u043C\u043E\u0434\u0435\u043B\u0435\u0439: ${list.length}`);
+    } catch (failure) {
+      setModelsNotice(
+        `\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u0438: ${failure instanceof Error ? failure.message : String(failure)}. \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043C\u043E\u0434\u0435\u043B\u044C \u0432\u0440\u0443\u0447\u043D\u0443\u044E.`
+      );
     }
   };
   const [compareState, setCompareState] = (0, import_react3.useState)("idle");
@@ -2787,6 +2818,16 @@ function SettingsPage(props) {
           onChange: (event) => setCloudForm((current2) => ({ ...current2, model: event.target.value }))
         }
       ) }),
+      modelOptions.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041C\u043E\u0434\u0435\u043B\u0438 \u0438\u0437 API", hint: "\u0421\u043F\u0438\u0441\u043E\u043A \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u043F\u043E \u0432\u0430\u0448\u0435\u043C\u0443 \u043A\u043B\u044E\u0447\u0443", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "select",
+        {
+          className: "vs-select",
+          value: cloudForm.model,
+          onChange: (event) => setCloudForm((current2) => ({ ...current2, model: event.target.value })),
+          children: modelOptions.map((name) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: name, children: name }, name))
+        }
+      ) }) : null,
+      modelsNotice ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", "data-status": modelOptions.length > 0 ? "ok" : "error", children: modelsNotice }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0421\u0441\u044B\u043B\u043A\u0430 \u043D\u0430 \u043A\u043B\u044E\u0447", hint: "\u0418\u043C\u044F \u0437\u0430\u043F\u0438\u0441\u0438 \u0432 credentials \u0438\u043B\u0438 env", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         "input",
         {
@@ -2818,8 +2859,9 @@ function SettingsPage(props) {
             onClick: () => {
               const id = selectedProvider?.id ?? "cloud-openai";
               void ctx.remote.speech.prepare(id, void 0).finally(() => void refresh());
+              void loadModels();
             },
-            children: "\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u0435"
+            children: "\u041F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C \u0438 \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u0438"
           }
         ),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => setCloudOpen(false), children: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C" })
