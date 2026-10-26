@@ -1474,6 +1474,28 @@ function comboMatches(event, combo) {
   if (key.length === 1) return name === key || code === `key${key}`;
   return code === key || name === key;
 }
+function ComboField(props) {
+  const [listening, setListening] = (0, import_react3.useState)(false);
+  (0, import_react3.useEffect)(() => {
+    if (!listening) return;
+    const onKeyDown = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const parts = [];
+      if (event.ctrlKey) parts.push("Ctrl");
+      if (event.altKey) parts.push("Alt");
+      if (event.shiftKey) parts.push("Shift");
+      if (event.metaKey) parts.push("Meta");
+      const key = event.code.startsWith("Key") ? event.code.slice(3) : event.code.startsWith("Digit") ? event.code.slice(5) : event.code === "Space" ? "Space" : event.key.length === 1 ? event.key.toUpperCase() : event.code;
+      parts.push(key);
+      props.onChange(parts.join("+"));
+      setListening(false);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [listening, props]);
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", disabled: props.disabled, onClick: () => setListening((value) => !value), children: listening ? "\u041D\u0430\u0436\u043C\u0438\u0442\u0435 \u0441\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u0435\u2026" : props.value || "\u041D\u0435 \u0437\u0430\u0434\u0430\u043D\u043E" });
+}
 var activeDraft = null;
 function MicActivity(props) {
   const { sessionId, inputActions, locked, onActiveChange, voiceStudio } = props;
@@ -2578,6 +2600,18 @@ function SettingsPage(props) {
         }
       ) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0417\u0430\u0449\u0438\u0442\u0430 \u043E\u0442 \u043F\u0435\u0440\u0435\u0433\u0440\u0443\u0437\u043A\u0438", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { checked: settings.limiter, onChange: (value) => update((current2) => ({ ...current2, limiter: value })) }) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0422\u0438\u0448\u0438\u043D\u0430 \u0438 \u043A\u043B\u0430\u0432\u0438\u0448\u0438" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0410\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E \u0442\u0438\u0448\u0438\u043D\u0435", hint: "\u0417\u0430\u0432\u0435\u0440\u0448\u0430\u0435\u0442 \u0437\u0430\u043F\u0438\u0441\u044C, \u043A\u043E\u0433\u0434\u0430 \u0432\u044B \u0437\u0430\u043C\u043E\u043B\u0447\u0430\u043B\u0438.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { checked: settings.vad.autoStop, onChange: (value) => update((current2) => ({ ...current2, vad: { ...current2.vad, autoStop: value } })) }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041F\u0430\u0443\u0437\u0430 \u0434\u043E \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Slider, { value: settings.vad.silenceMs, min: 400, max: 5e3, step: 100, unit: " \u043C\u0441", onChange: (value) => update((current2) => ({ ...current2, vad: { ...current2.vad, silenceMs: value } })) }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041F\u043E\u0440\u043E\u0433 \u0442\u0438\u0448\u0438\u043D\u044B", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Slider, { value: settings.vad.thresholdDb, min: -70, max: -20, unit: " \u0434\u0411", onChange: (value) => update((current2) => ({ ...current2, vad: { ...current2.vad, thresholdDb: value } })) }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "Push-to-talk", hint: "\u0417\u0430\u043F\u0438\u0441\u044C \u043F\u043E \u0443\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u044E \u0441\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u044F \u043A\u043B\u0430\u0432\u0438\u0448.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { checked: settings.ptt.enabled, onChange: (value) => update((current2) => ({ ...current2, ptt: { ...current2.ptt, enabled: value } })) }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0421\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u0435", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ComboField, { value: settings.ptt.combo, onChange: (value) => update((current2) => ({ ...current2, ptt: { ...current2.ptt, combo: value } })) }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u0420\u0435\u0436\u0438\u043C", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("select", { className: "vs-select", value: settings.ptt.mode, onChange: (event) => update((current2) => ({ ...current2, ptt: { ...current2.ptt, mode: event.target.value === "toggle" ? "toggle" : "hold" } })), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "hold", children: "\u0423\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "toggle", children: "\u041F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435" })
+      ] }) })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0422\u0435\u043A\u0441\u0442" }) }),

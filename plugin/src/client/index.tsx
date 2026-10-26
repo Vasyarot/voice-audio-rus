@@ -1507,6 +1507,30 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           <Check checked={settings.limiter} onChange={(value) => update((current) => ({ ...current, limiter: value }))} />
         </Row>
       </details>
+      <details className="vs-section">
+        <summary><h4>Тишина и клавиши</h4></summary>
+        <Row label="Авто-стоп по тишине" hint="Завершает запись, когда вы замолчали.">
+          <Check checked={settings.vad.autoStop} onChange={(value) => update((current) => ({ ...current, vad: { ...current.vad, autoStop: value } }))} />
+        </Row>
+        <Row label="Пауза до остановки">
+          <Slider value={settings.vad.silenceMs} min={400} max={5000} step={100} unit=" мс" onChange={(value) => update((current) => ({ ...current, vad: { ...current.vad, silenceMs: value } }))} />
+        </Row>
+        <Row label="Порог тишины">
+          <Slider value={settings.vad.thresholdDb} min={-70} max={-20} unit=" дБ" onChange={(value) => update((current) => ({ ...current, vad: { ...current.vad, thresholdDb: value } }))} />
+        </Row>
+        <Row label="Push-to-talk" hint="Запись по удержанию сочетания клавиш.">
+          <Check checked={settings.ptt.enabled} onChange={(value) => update((current) => ({ ...current, ptt: { ...current.ptt, enabled: value } }))} />
+        </Row>
+        <Row label="Сочетание">
+          <ComboField value={settings.ptt.combo} onChange={(value) => update((current) => ({ ...current, ptt: { ...current.ptt, combo: value } }))} />
+        </Row>
+        <Row label="Режим">
+          <select className="vs-select" value={settings.ptt.mode} onChange={(event) => update((current) => ({ ...current, ptt: { ...current.ptt, mode: event.target.value === 'toggle' ? 'toggle' : 'hold' } }))}>
+            <option value="hold">Удержание</option>
+            <option value="toggle">Переключение</option>
+          </select>
+        </Row>
+      </details>
 <details className="vs-section">
         <summary><h4>Текст</h4></summary>
         <Row label="Авто-пунктуация" hint="Заглавные буквы и точка в конце.">
