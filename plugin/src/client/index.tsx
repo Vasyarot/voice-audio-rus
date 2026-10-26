@@ -124,6 +124,7 @@ function cloudStatusText(provider: ProviderInfo): string {
   if (phase === 'failed') {
     const message = provider.preparation?.message ?? ''
     if (/401|403|отклон/iu.test(message)) return 'ключ отклонён'
+    if (/нет ключа|ключ не найден/iu.test(message)) return 'нет ключа'
     if (/настроен|base\s?url|модел/iu.test(message)) return 'не настроен'
     if (/соедин|сет|dns|timeout|таймаут/iu.test(message)) return 'нет соединения'
     return `ошибка: ${message.slice(0, 60)}`

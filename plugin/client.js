@@ -1393,6 +1393,7 @@ function cloudStatusText(provider) {
   if (phase === "failed") {
     const message = provider.preparation?.message ?? "";
     if (/401|403|отклон/iu.test(message)) return "\u043A\u043B\u044E\u0447 \u043E\u0442\u043A\u043B\u043E\u043D\u0451\u043D";
+    if (/нет ключа|ключ не найден/iu.test(message)) return "\u043D\u0435\u0442 \u043A\u043B\u044E\u0447\u0430";
     if (/настроен|base\s?url|модел/iu.test(message)) return "\u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D";
     if (/соедин|сет|dns|timeout|таймаут/iu.test(message)) return "\u043D\u0435\u0442 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F";
     return `\u043E\u0448\u0438\u0431\u043A\u0430: ${message.slice(0, 60)}`;
