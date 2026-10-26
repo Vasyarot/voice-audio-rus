@@ -1,0 +1,37 @@
+# Voice Studio: speech service + authenticated Remote + local Whisper + cloud provider + UI.
+# Rows are id-scoped so this bundle can coexist with other layers, but do not enable the
+# shipped `dsh-experimental-voice-input-bundle` at the same time (it inserts the same service rows).
+- insert:
+    - id: voice-studio-speech
+      name: '@deepseek-ai/dsh-experimental-speech-to-text'
+      config:
+        defaultProvider: whisper-base
+        language: ru
+    - id: voice-studio-api
+      name: '@deepseek-ai/dsh-experimental-api-speech-to-text'
+      config:
+        maxDurationSeconds: 300
+        maxAudioBytes: 16777216
+    - id: voice-studio
+      name: 'dsh-plugin-voice-studio'
+      config:
+        enableLocal: true
+        enableCloud: true
+        local:
+          models: [tiny, base, small]
+          dataRoot: !!js dshHomePath('speech-to-text', 'whisper')
+          modelOrigins:
+            - 'https://huggingface.co'
+            - 'https://hf-mirror.com'
+          threads: 4
+          fallbackLanguage: ru
+        cloud:
+          providerId: cloud-openai
+          title: 'Облако · OpenAI-совместимый'
+          baseURL: 'https://api.openai.com/v1'
+          model: whisper-1
+          apiKeyEnv: OPENAI_API_KEY
+          apiKey: ''
+          languages: [auto, ru, en]
+          prompt: ''
+          timeoutMs: 120000
