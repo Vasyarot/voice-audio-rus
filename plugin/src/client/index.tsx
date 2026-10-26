@@ -1213,9 +1213,6 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
                 <button type="button" className="vs-btn" onClick={() => void prepareAll()}>
                   Скачать все модели
                 </button>
-                <button type="button" className="vs-btn" onClick={() => void refresh()}>
-                  Обновить
-                </button>
               </span>
             </div>
             <PreparationProgress provider={selectedProvider} />
@@ -1227,7 +1224,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         )}
       
         {error ? <p className="vs-error">{error}</p> : null}
-        <Row label="Провайдер" hint={selectedProvider ? `Статус: ${phaseText(selectedProvider)}` : 'Список недоступен'}>
+        <Row label="Провайдер">
           <select
             className="vs-select"
             value={settings.providerId || catalog?.selection.providerId || ''}
@@ -1251,7 +1248,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             ))}
           </select>
         </Row>
-        <div className="vs-line">
+        <div className="vs-line" style={{ margin: '6px 0 12px' }}>
           <span className="vs-hint" data-status={statusKind(selectedProvider)}>
             Статус: {statusFor(selectedProvider)}
           </span>
@@ -1285,10 +1282,6 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             ))}
           </select>
         </Row>
-        <div className="vs-controls">
-          <button type="button" className="vs-btn" onClick={() => void refresh()}>
-            Обновить
-          </button>
         </div>
         <p className="vs-hint">
           Локальные движки — Whisper (ONNX на CPU через sherpa-onnx, входит в DSH). Русский поддерживается.
