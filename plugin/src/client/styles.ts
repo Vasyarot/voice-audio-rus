@@ -56,10 +56,9 @@ export const CSS = `
 .vs-btn:disabled{opacity:.5;cursor:default}
 .vs-dict{display:flex;flex-direction:column;gap:6px}
 .vs-dict-row{display:grid;grid-template-columns:1fr 1fr auto;gap:6px}
-.vs-history{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
-.vs-history-item{display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:6px;border:.5px solid var(--dsw-alias-border-l1, #ffffff10)}
-.vs-history-item p{margin:0;font-size:12px;word-break:break-word}
-.vs-history-meta{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--dsw-alias-label-tertiary, #777)}
+.vs-compare-item{display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:6px;border:.5px solid var(--dsw-alias-border-l1, #ffffff10)}
+.vs-compare-item p{margin:0;font-size:12px;word-break:break-word}
+.vs-compare-meta{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--dsw-alias-label-tertiary, #777)}
 .vs-badge{font-size:11px;padding:1px 6px;border-radius:999px;border:.5px solid var(--dsw-alias-border-l2, #ffffff1f)}
 .vs-error{color:var(--dsw-alias-state-error-primary, #e5484d);font-size:12px}
 .vs-progress{display:flex;flex-direction:column;gap:4px}

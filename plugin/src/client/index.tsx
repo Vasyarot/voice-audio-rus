@@ -2115,8 +2115,8 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           ) : null}
         </div>
         {compareResults.map((item) => (
-          <div className="vs-history-item" key={item.id}>
-            <div className="vs-history-meta">
+          <div className="vs-compare-item" key={item.id}>
+            <div className="vs-compare-meta">
               <strong>{item.name}</strong>
               <span className="vs-badge">{item.ms !== undefined ? `${item.ms} мс` : '—'}</span>
             </div>
