@@ -39,7 +39,7 @@ __export(index_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(index_exports);
-var import_react3 = require("react");
+var import_react2 = require("react");
 
 // plugin/src/vendor/speech-remote.js
 var import_zod = require("zod");
@@ -1065,106 +1065,8 @@ async function attachSuppressorAsync(context, source, settings) {
   return analyser;
 }
 
-// plugin/src/client/history.ts
-var import_react = require("react");
-var STORAGE_KEY = "dsh.voice-studio.history.v1";
-function read() {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((entry) => entry && typeof entry.text === "string" && typeof entry.createdAt === "number").slice(0, 200).map((entry) => ({
-      id: typeof entry.id === "string" ? entry.id : crypto.randomUUID(),
-      text: entry.text,
-      createdAt: entry.createdAt,
-      seconds: Number(entry.seconds) || 0,
-      providerId: typeof entry.providerId === "string" ? entry.providerId : "",
-      language: typeof entry.language === "string" ? entry.language : "",
-      deviceLabel: typeof entry.deviceLabel === "string" ? entry.deviceLabel : ""
-    }));
-  } catch {
-    return [];
-  }
-}
-var entries = read();
-var listeners = /* @__PURE__ */ new Set();
-function persist() {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  } catch {
-  }
-  for (const listener of listeners) listener();
-}
-function listHistory() {
-  return entries;
-}
-function addHistory(entry, limit) {
-  const next = {
-    ...entry,
-    id: crypto.randomUUID(),
-    createdAt: Date.now()
-  };
-  entries = [next, ...entries].slice(0, Math.max(0, limit || 0));
-  persist();
-}
-function removeHistory(id) {
-  entries = entries.filter((entry) => entry.id !== id);
-  persist();
-}
-function clearHistory() {
-  entries = [];
-  persist();
-}
-function useHistory() {
-  const [value, setValue] = (0, import_react.useState)(listHistory());
-  (0, import_react.useEffect)(() => {
-    const listener = () => setValue(listHistory());
-    listeners.add(listener);
-    setValue(listHistory());
-    return () => {
-      listeners.delete(listener);
-    };
-  }, []);
-  return value;
-}
-function stamp(entry) {
-  return new Date(entry.createdAt).toLocaleString();
-}
-function exportHistory(format) {
-  const list = listHistory();
-  let content = "";
-  let mime = "text/plain;charset=utf-8";
-  let extension = "txt";
-  if (format === "json") {
-    content = JSON.stringify(list, null, 2);
-    mime = "application/json;charset=utf-8";
-    extension = "json";
-  } else if (format === "md") {
-    content = list.map((entry) => `## ${stamp(entry)}
-
-${entry.text}
-
----
-`).join("\n");
-    mime = "text/markdown;charset=utf-8";
-    extension = "md";
-  } else {
-    content = list.map((entry) => `[${stamp(entry)}] ${entry.text}`).join("\n");
-  }
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `voice-studio-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.${extension}`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1e3);
-}
-
 // plugin/src/client/settings.ts
-var import_react2 = require("react");
+var import_react = require("react");
 var DEFAULT_SETTINGS = {
   deviceId: "",
   deviceLabel: "",
@@ -1180,11 +1082,10 @@ var DEFAULT_SETTINGS = {
   vad: { autoStop: true, silenceMs: 1800, thresholdDb: -42 },
   ptt: { enabled: false, combo: "Ctrl+Shift+Space", mode: "hold" },
   text: { autoPunctuation: true, removeFillers: false, dictionary: [] },
-  historyLimit: 50,
   providerId: "",
   language: "ru"
 };
-var STORAGE_KEY2 = "dsh.voice-studio.settings.v1";
+var STORAGE_KEY = "dsh.voice-studio.settings.v1";
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -1248,31 +1149,30 @@ function normalizeSettings(raw) {
       removeFillers: bool(value.text?.removeFillers, base.text.removeFillers),
       dictionary
     },
-    historyLimit: clamp(value.historyLimit, 0, 200, base.historyLimit),
     providerId: text(value.providerId, base.providerId),
     language: text(value.language, base.language)
   };
 }
 function loadSettings() {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY2);
+    const raw = window.localStorage.getItem(STORAGE_KEY);
     return raw ? normalizeSettings(JSON.parse(raw)) : clone(DEFAULT_SETTINGS);
   } catch {
     return clone(DEFAULT_SETTINGS);
   }
 }
 var current = loadSettings();
-var listeners2 = /* @__PURE__ */ new Set();
+var listeners = /* @__PURE__ */ new Set();
 function getSettings() {
   return current;
 }
 function setSettings(next) {
   current = normalizeSettings(next);
   try {
-    window.localStorage.setItem(STORAGE_KEY2, JSON.stringify(current));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
   } catch {
   }
-  for (const listener of listeners2) listener();
+  for (const listener of listeners) listener();
 }
 function updateSettings(recipe) {
   setSettings(recipe(getSettings()));
@@ -1281,13 +1181,13 @@ function resetSettings(keep = {}) {
   setSettings({ ...clone(DEFAULT_SETTINGS), ...keep });
 }
 function useSettings() {
-  const [value, setValue] = (0, import_react2.useState)(getSettings());
-  (0, import_react2.useEffect)(() => {
+  const [value, setValue] = (0, import_react.useState)(getSettings());
+  (0, import_react.useEffect)(() => {
     const listener = () => setValue(getSettings());
-    listeners2.add(listener);
+    listeners.add(listener);
     setValue(getSettings());
     return () => {
-      listeners2.delete(listener);
+      listeners.delete(listener);
     };
   }, []);
   return value;
@@ -1364,6 +1264,8 @@ var CSS = `
 .vs-quick{position:fixed;right:24px;bottom:80px;z-index:70;display:flex;flex-direction:column;gap:10px;width:min(340px,84vw);max-height:66vh;overflow:auto;padding:12px;border-radius:12px;border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);background:var(--dsw-alias-bg-module-platform, #1b1d22);color:var(--dsw-alias-label-primary, inherit);box-shadow:0 18px 48px #00000066;font-size:13px}
 .vs-quick-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .vs-quick-head strong{font-size:13.5px}
+.vs-quick-actions{display:flex;gap:8px}
+.vs-quick-actions .vs-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .vs-quick-block{display:flex;flex-direction:column;gap:6px}
 .vs-quick-label{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary, #999)}
 .vs-quick-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:.5px solid var(--dsw-alias-border-l1, #ffffff14);padding-top:8px}
@@ -1376,7 +1278,14 @@ var CSS = `
 .vs-dot[data-status="ok"]{background:#3fb950}
 .vs-dot[data-status="error"]{background:#e5484d}
 .vs-dot[data-status="pending"]{background:#d29922}
-.vs-live-tag{display:inline-flex;align-items:center;gap:6px;min-width:0;font-size:12px;color:var(--dsw-alias-label-secondary, #999);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vs-mode-badge{flex:none;display:inline-flex;align-items:center;justify-content:center;width:22px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-tertiary, #777);cursor:pointer}
+.vs-mode-badge:hover{background:var(--dsw-alias-interactive-bg-hover, #ffffff14);color:inherit}
+.vs-mode-badge[data-mode="live"]{color:#3fb950}
+.vs-mode-badge[data-mode="utterance"]{color:var(--dsw-alias-brand-primary, #2f6bff)}
+.vs-mode-chip{flex:none;display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);font-size:11.5px;color:var(--dsw-alias-label-secondary, #999);white-space:nowrap}
+.vs-mode-chip[data-mode="live"]{color:#3fb950;border-color:#3fb95055}
+.vs-mode-chip[data-mode="utterance"]{color:var(--dsw-alias-brand-primary, #2f6bff);border-color:#2f6bff55}
+.vs-mode-timer{font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-tertiary, #888)}
 .vs-quick .vs-input,.vs-quick .vs-select{width:100%}
 `;
 
@@ -1386,9 +1295,9 @@ var FILLERS_EN = ["uh", "um", "erm", "like", "you know"];
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function applyDictionary(text, entries2) {
+function applyDictionary(text, entries) {
   let result = text;
-  for (const entry of entries2) {
+  for (const entry of entries) {
     const from = entry.from.trim();
     if (from === "") continue;
     try {
@@ -1653,6 +1562,28 @@ function IconGear(props) {
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18", stroke: "currentColor", strokeWidth: "1.6", strokeLinecap: "round" })
   ] });
 }
+function IconLiveBars(props) {
+  const size = props.size ?? 13;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M5 10v4M9 7v10M15 7v10M19 10v4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" }) });
+}
+function IconRecordDot(props) {
+  const size = props.size ?? 13;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", { cx: "12", cy: "12", r: "6.6", stroke: "currentColor", strokeWidth: "1.7" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", { cx: "12", cy: "12", r: "2.5", fill: "currentColor" })
+  ] });
+}
+function secondsText(value) {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+function modeTitle(settings) {
+  if (settings.mode === "live") {
+    return `\u0416\u0438\u0432\u043E\u0439 \u0440\u0435\u0436\u0438\u043C: \u0442\u0435\u043A\u0441\u0442 \u0434\u043E\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043A\u0430\u0436\u0434\u044B\u0435 ${secondsText(settings.live.chunkSeconds)} \u0441 \u0440\u0435\u0447\u0438 \u0438 \u043F\u043E\u0441\u043B\u0435 \u043F\u0430\u0443\u0437\u044B ${secondsText(settings.live.pauseMs / 1e3)} \u0441; \u0437\u0430\u043F\u0438\u0441\u044C \u043E\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u0432\u0440\u0443\u0447\u043D\u0443\u044E`;
+  }
+  const stop = settings.vad.autoStop ? `\u0430\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E\u0441\u043B\u0435 ${secondsText(settings.vad.silenceMs / 1e3)} \u0441 \u0442\u0438\u0448\u0438\u043D\u044B` : "\u0430\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E \u0442\u0438\u0448\u0438\u043D\u0435 \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D";
+  return `\u041F\u043E \u043A\u043D\u043E\u043F\u043A\u0435: \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435 \u043F\u043E\u0441\u043B\u0435 \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438, ${stop}`;
+}
 function catalogError(result) {
   const error = result?.error;
   if (typeof error?.message === "string") return error.message;
@@ -1660,9 +1591,9 @@ function catalogError(result) {
   return "\u0421\u043B\u0443\u0436\u0431\u0430 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0430";
 }
 function useSpeechCatalog(ctx) {
-  const [catalog, setCatalog] = (0, import_react3.useState)(null);
-  const [error, setError] = (0, import_react3.useState)(null);
-  const refresh = (0, import_react3.useCallback)(async () => {
+  const [catalog, setCatalog] = (0, import_react2.useState)(null);
+  const [error, setError] = (0, import_react2.useState)(null);
+  const refresh = (0, import_react2.useCallback)(async () => {
     try {
       const result = await ctx.remote.speech.catalog();
       if (result?.ok) {
@@ -1675,7 +1606,7 @@ function useSpeechCatalog(ctx) {
       setError(failure instanceof Error ? failure.message : String(failure));
     }
   }, [ctx]);
-  (0, import_react3.useEffect)(() => {
+  (0, import_react2.useEffect)(() => {
     let alive = true;
     const run = () => {
       if (alive) void refresh();
@@ -1794,8 +1725,8 @@ function comboMatches(event, combo) {
   return code === key || name === key;
 }
 function ComboField(props) {
-  const [listening, setListening] = (0, import_react3.useState)(false);
-  (0, import_react3.useEffect)(() => {
+  const [listening, setListening] = (0, import_react2.useState)(false);
+  (0, import_react2.useEffect)(() => {
     if (!listening) return;
     const onKeyDown = (event) => {
       event.preventDefault();
@@ -1826,21 +1757,21 @@ function QuickSettings(props) {
   const provider = providers.find((item) => item.id === selectedId);
   const isCloud = provider?.location === "cloud";
   const languages = provider?.languages ?? [];
-  const boxRef = (0, import_react3.useRef)(null);
-  const closeRef = (0, import_react3.useRef)(props.onClose);
+  const boxRef = (0, import_react2.useRef)(null);
+  const closeRef = (0, import_react2.useRef)(props.onClose);
   closeRef.current = props.onClose;
-  const [draft, setDraft] = (0, import_react3.useState)(loadCloudDraft);
-  const [keyValue, setKeyValue] = (0, import_react3.useState)("");
-  const [models, setModels] = (0, import_react3.useState)(loadCachedModels);
-  const [notice, setNotice] = (0, import_react3.useState)(null);
-  const [noticeKind, setNoticeKind] = (0, import_react3.useState)("pending");
-  const [busy, setBusy] = (0, import_react3.useState)(false);
-  const pullingRef = (0, import_react3.useRef)(false);
-  const best = (0, import_react3.useMemo)(() => recommendModel(models), [models]);
-  (0, import_react3.useEffect)(() => {
+  const [draft, setDraft] = (0, import_react2.useState)(loadCloudDraft);
+  const [keyValue, setKeyValue] = (0, import_react2.useState)("");
+  const [models, setModels] = (0, import_react2.useState)(loadCachedModels);
+  const [notice, setNotice] = (0, import_react2.useState)(null);
+  const [noticeKind, setNoticeKind] = (0, import_react2.useState)("pending");
+  const [busy, setBusy] = (0, import_react2.useState)(false);
+  const pullingRef = (0, import_react2.useRef)(false);
+  const best = (0, import_react2.useMemo)(() => recommendModel(models), [models]);
+  (0, import_react2.useEffect)(() => {
     saveCloudDraft(draft);
   }, [draft]);
-  (0, import_react3.useEffect)(() => {
+  (0, import_react2.useEffect)(() => {
     const onPointer = (event) => {
       const box = boxRef.current;
       if (box && event.target instanceof Node && !box.contains(event.target)) closeRef.current();
@@ -1960,9 +1891,9 @@ function QuickSettings(props) {
       setBusy(false);
     }
   };
-  const pullRef = (0, import_react3.useRef)(pullModels);
+  const pullRef = (0, import_react2.useRef)(pullModels);
   pullRef.current = pullModels;
-  (0, import_react3.useEffect)(() => {
+  (0, import_react2.useEffect)(() => {
     if (!isCloud) return;
     const base = normalizeBaseURL(draft.baseURL);
     const key = keyValue.trim();
@@ -1978,6 +1909,16 @@ function QuickSettings(props) {
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-round", "aria-label": "\u0417\u0430\u043A\u0440\u044B\u0442\u044C", onClick: props.onClose, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconClose, {}) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-actions", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { type: "button", className: "vs-btn", "data-kind": "primary", onClick: () => props.onStart("utterance"), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconRecordDot, { size: 12 }),
+        "\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { type: "button", className: "vs-btn", onClick: () => props.onStart("live"), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconLiveBars, { size: 12 }),
+        "\u0412 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u043C \u0432\u0440\u0435\u043C\u0435\u043D\u0438"
+      ] })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-block", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-quick-label", children: "\u0420\u0435\u0436\u0438\u043C" }),
@@ -2069,54 +2010,41 @@ function QuickSettings(props) {
     ] })
   ] });
 }
-var activeDraft = null;
 function MicActivity(props) {
   const { sessionId, inputActions, locked, onActiveChange, voiceStudio } = props;
   const ctx = voiceStudio.ctx;
   const settings = useSettings();
-  const settingsRef = (0, import_react3.useRef)(settings);
+  const settingsRef = (0, import_react2.useRef)(settings);
   settingsRef.current = settings;
   const { catalog, error: speechError, refresh } = useSpeechCatalog(ctx);
-  const catalogRef = (0, import_react3.useRef)(catalog);
+  const catalogRef = (0, import_react2.useRef)(catalog);
   catalogRef.current = catalog;
-  const [phase, setPhase] = (0, import_react3.useState)("idle");
-  const [message, setMessage] = (0, import_react3.useState)("");
-  const [seconds, setSeconds] = (0, import_react3.useState)(0);
-  const [live, setLive] = (0, import_react3.useState)(false);
-  const [liveText, setLiveText] = (0, import_react3.useState)("");
-  const [quickOpen, setQuickOpen] = (0, import_react3.useState)(false);
-  const [quickAnchor, setQuickAnchor] = (0, import_react3.useState)(void 0);
-  const liveRef = (0, import_react3.useRef)(null);
-  const writerRef = (0, import_react3.useRef)(null);
-  const insertTokenRef = (0, import_react3.useRef)(0);
-  const recorderRef = (0, import_react3.useRef)(null);
-  const selectionRef = (0, import_react3.useRef)(null);
-  const abortRef = (0, import_react3.useRef)(null);
-  const phaseRef = (0, import_react3.useRef)(phase);
+  const [phase, setPhase] = (0, import_react2.useState)("idle");
+  const [message, setMessage] = (0, import_react2.useState)("");
+  const [seconds, setSeconds] = (0, import_react2.useState)(0);
+  const [live, setLive] = (0, import_react2.useState)(false);
+  const [silence, setSilence] = (0, import_react2.useState)(0);
+  const [quickOpen, setQuickOpen] = (0, import_react2.useState)(false);
+  const [quickAnchor, setQuickAnchor] = (0, import_react2.useState)(void 0);
+  const liveRef = (0, import_react2.useRef)(null);
+  const writerRef = (0, import_react2.useRef)(null);
+  const insertTokenRef = (0, import_react2.useRef)(0);
+  const recorderRef = (0, import_react2.useRef)(null);
+  const selectionRef = (0, import_react2.useRef)(null);
+  const abortRef = (0, import_react2.useRef)(null);
+  const phaseRef = (0, import_react2.useRef)(phase);
   phaseRef.current = phase;
-  const meterRef = (0, import_react3.useRef)([]);
-  const finishRef = (0, import_react3.useRef)(() => {
+  const meterRef = (0, import_react2.useRef)([]);
+  const finishRef = (0, import_react2.useRef)(() => {
   });
-  const startRef = (0, import_react3.useRef)(() => {
+  const startRef = (0, import_react2.useRef)(() => {
   });
+  const holdTimerRef = (0, import_react2.useRef)(0);
+  const holdFiredRef = (0, import_react2.useRef)(false);
   const selection = catalog?.selection;
   const provider = catalog?.providers.find((item) => item.id === selection?.providerId);
   const usable = provider != null && ["ready", "standby", "waking"].includes(provider.preparation?.phase ?? "ready");
-  (0, import_react3.useEffect)(() => {
-    activeDraft = {
-      insertText: (text) => {
-        try {
-          return Boolean(inputActions.insertText(text, inputActions.captureInsertion()));
-        } catch {
-          return false;
-        }
-      }
-    };
-    return () => {
-      activeDraft = null;
-    };
-  }, [inputActions]);
-  const cancel = (0, import_react3.useCallback)(() => {
+  const cancel = (0, import_react2.useCallback)(() => {
     insertTokenRef.current += 1;
     writerRef.current?.cancel();
     writerRef.current = null;
@@ -2127,7 +2055,6 @@ function MicActivity(props) {
       if (live2.timer) window.clearInterval(live2.timer);
     }
     setLive(false);
-    setLiveText("");
     abortRef.current?.abort();
     abortRef.current = null;
     const recorder = recorderRef.current;
@@ -2136,8 +2063,9 @@ function MicActivity(props) {
     setPhase("idle");
     setMessage("");
     setSeconds(0);
+    setSilence(0);
   }, []);
-  const insertTextWithRetry = (0, import_react3.useCallback)(
+  const insertTextWithRetry = (0, import_react2.useCallback)(
     async (text) => {
       const token = insertTokenRef.current;
       for (let attempt = 0; attempt < 80; attempt += 1) {
@@ -2155,19 +2083,18 @@ function MicActivity(props) {
     },
     [inputActions]
   );
-  const appendLive = (0, import_react3.useCallback)(
+  const appendLive = (0, import_react2.useCallback)(
     (piece) => {
       const state = liveRef.current;
       const writer = writerRef.current;
       if (!state || !writer) return;
       const next = joinLiveText(state.text, piece);
       state.text = next;
-      setLiveText(next);
       writer.push(next);
     },
     []
   );
-  const cutLive = (0, import_react3.useCallback)(async () => {
+  const cutLive = (0, import_react2.useCallback)(async () => {
     const state = liveRef.current;
     const recorder = recorderRef.current;
     if (!state || !recorder) return;
@@ -2204,7 +2131,7 @@ function MicActivity(props) {
       abortRef.current = null;
     }
   }, [appendLive, ctx]);
-  const requestCut = (0, import_react3.useCallback)(() => {
+  const requestCut = (0, import_react2.useCallback)(() => {
     const state = liveRef.current;
     if (!state || state.stopped || state.busy) return;
     state.busy = true;
@@ -2213,7 +2140,7 @@ function MicActivity(props) {
       state.busy = false;
     });
   }, [cutLive]);
-  const tickLive = (0, import_react3.useCallback)(() => {
+  const tickLive = (0, import_react2.useCallback)(() => {
     const state = liveRef.current;
     const recorder = recorderRef.current;
     if (!state || !recorder || state.stopped) return;
@@ -2238,9 +2165,9 @@ function MicActivity(props) {
     if (hasSpeech) requestCut();
     else recorder.drainPcm();
   }, [requestCut]);
-  const tickLiveRef = (0, import_react3.useRef)(tickLive);
+  const tickLiveRef = (0, import_react2.useRef)(tickLive);
   tickLiveRef.current = tickLive;
-  const startLive = (0, import_react3.useCallback)(async () => {
+  const startLive = (0, import_react2.useCallback)(async () => {
     const currentCatalog = catalogRef.current;
     const currentProvider = currentCatalog?.providers.find((item) => item.id === currentCatalog.selection.providerId);
     if (!currentCatalog || !currentProvider) {
@@ -2256,8 +2183,8 @@ function MicActivity(props) {
     selectionRef.current = { providerId: currentProvider.id, language: currentCatalog.selection.language };
     const recorder = new VoiceRecorder(settingsRef.current);
     setMessage("");
-    setLiveText("");
     setSeconds(0);
+    setSilence(0);
     setPhase("requesting");
     try {
       await recorder.start(true);
@@ -2288,7 +2215,7 @@ function MicActivity(props) {
     setLive(true);
     setPhase("recording");
   }, [inputActions]);
-  const finishLive = (0, import_react3.useCallback)(async () => {
+  const finishLive = (0, import_react2.useCallback)(async () => {
     const state = liveRef.current;
     const recorder = recorderRef.current;
     if (!state || !recorder || state.stopped) return;
@@ -2296,7 +2223,6 @@ function MicActivity(props) {
     if (state.timer) window.clearInterval(state.timer);
     phaseRef.current = "transcribing";
     setPhase("transcribing");
-    const elapsed = recorder.elapsedSeconds();
     state.busy = true;
     state.queue = state.queue.then(async () => {
       await cutLive();
@@ -2310,37 +2236,25 @@ function MicActivity(props) {
       liveRef.current = null;
       recorderRef.current = null;
       setLive(false);
-      setLiveText("");
       const text = state.text.trim();
       if (text === "") {
         setPhase("feedback");
         setMessage("\u0420\u0435\u0447\u044C \u043D\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u043D\u0430 \u2014 \u043F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0431\u043B\u0438\u0436\u0435 \u043A \u043C\u0438\u043A\u0440\u043E\u0444\u043E\u043D\u0443.");
         return;
       }
-      addHistory(
-        {
-          text,
-          seconds: Math.round(elapsed),
-          providerId: selectionRef.current?.providerId ?? "",
-          language: selectionRef.current?.language ?? "",
-          deviceLabel: settingsRef.current.deviceLabel
-        },
-        settingsRef.current.historyLimit
-      );
       setPhase("idle");
       setMessage("");
     } catch (failure) {
       liveRef.current = null;
       recorderRef.current = null;
       setLive(false);
-      setLiveText("");
       setPhase("feedback");
       setMessage(describeFailure(failure));
     } finally {
       void refresh();
     }
   }, [appendLive, cutLive, refresh]);
-  const start = (0, import_react3.useCallback)(async () => {
+  const start = (0, import_react2.useCallback)(async (modeOverride) => {
     if (phaseRef.current !== "idle" || locked) return;
     writerRef.current?.cancel();
     writerRef.current = null;
@@ -2356,7 +2270,8 @@ function MicActivity(props) {
       setMessage(`\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043D\u0435 \u0433\u043E\u0442\u043E\u0432: ${phaseText(currentProvider)}. \u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u044C\u0442\u0435 \u043C\u043E\u0434\u0435\u043B\u044C \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445.`);
       return;
     }
-    if (settingsRef.current.mode === "live") {
+    const mode = modeOverride ?? settingsRef.current.mode;
+    if (mode === "live") {
       await startLive();
       return;
     }
@@ -2376,7 +2291,15 @@ function MicActivity(props) {
     setSeconds(0);
     setPhase("recording");
   }, [inputActions, locked, startLive]);
-  const finish = (0, import_react3.useCallback)(async () => {
+  const startWithMode = (0, import_react2.useCallback)(
+    (mode) => {
+      updateSettings((current2) => ({ ...current2, mode }));
+      setQuickOpen(false);
+      void start(mode);
+    },
+    [start]
+  );
+  const finish = (0, import_react2.useCallback)(async () => {
     if (liveRef.current) {
       await finishLive();
       return;
@@ -2417,19 +2340,9 @@ function MicActivity(props) {
         return;
       }
       const text = postProcess(transcript.text, settingsRef.current);
-      addHistory(
-        {
-          text,
-          seconds: Math.round(transcript.audioSeconds ?? 0),
-          providerId: selectionValue?.providerId ?? "",
-          language: selectionValue?.language ?? "",
-          deviceLabel: settingsRef.current.deviceLabel
-        },
-        settingsRef.current.historyLimit
-      );
       const applied = await insertTextWithRetry(text);
       setPhase(applied ? "idle" : "feedback");
-      setMessage(applied ? "" : "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0432\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u0442\u0435\u043A\u0441\u0442 \u0432 \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u2014 \u043E\u043D \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0432 \u0438\u0441\u0442\u043E\u0440\u0438\u0438.");
+      setMessage(applied ? "" : "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0432\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u0442\u0435\u043A\u0441\u0442 \u0432 \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A.");
     } catch (failure) {
       if (!runRef.cancelled) {
         setPhase("feedback");
@@ -2447,11 +2360,12 @@ function MicActivity(props) {
   startRef.current = () => {
     void start();
   };
-  (0, import_react3.useEffect)(() => {
+  (0, import_react2.useEffect)(() => {
     if (phase !== "recording") return;
     const liveMode = settingsRef.current.mode === "live";
     let raf = 0;
     let silentMs = 0;
+    let publishedSilence = -1;
     let last = performance.now();
     const tick = () => {
       const recorder = recorderRef.current;
@@ -2471,8 +2385,14 @@ function MicActivity(props) {
         if (vad.autoStop && !liveMode) {
           if (db > vad.thresholdDb) silentMs = 0;
           else silentMs += delta;
+          const bucket = Math.round(silentMs / 100);
+          if (bucket !== publishedSilence) {
+            publishedSilence = bucket;
+            setSilence(silentMs);
+          }
           if (silentMs >= vad.silenceMs) {
             silentMs = 0;
+            setSilence(0);
             finishRef.current();
             return;
           }
@@ -2493,7 +2413,7 @@ function MicActivity(props) {
       window.clearTimeout(limit);
     };
   }, [phase]);
-  (0, import_react3.useEffect)(() => {
+  (0, import_react2.useEffect)(() => {
     const ptt = settings.ptt;
     if (!ptt.enabled) return;
     const onKeyDown = (event) => {
@@ -2522,7 +2442,7 @@ function MicActivity(props) {
       window.removeEventListener("keyup", onKeyUp, true);
     };
   }, [settings.ptt.enabled, settings.ptt.combo, settings.ptt.mode]);
-  (0, import_react3.useEffect)(() => {
+  (0, import_react2.useEffect)(() => {
     const onKeyDown = (event) => {
       if (event.key === "Escape" && phaseRef.current !== "idle") {
         event.preventDefault();
@@ -2539,32 +2459,46 @@ function MicActivity(props) {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [cancel]);
-  (0, import_react3.useEffect)(() => () => cancel(), [cancel]);
+  (0, import_react2.useEffect)(() => () => cancel(), [cancel]);
   const expanded = phase !== "idle";
-  (0, import_react3.useEffect)(() => {
+  (0, import_react2.useEffect)(() => {
     if (expanded) setQuickOpen(false);
   }, [expanded]);
-  (0, import_react3.useEffect)(() => {
+  (0, import_react2.useEffect)(() => {
     onActiveChange?.(expanded);
     return () => onActiveChange?.(false);
   }, [expanded, onActiveChange]);
-  (0, import_react3.useEffect)(() => {
+  (0, import_react2.useEffect)(() => {
     setMessage("");
     if (phaseRef.current !== "recording") setPhase("idle");
   }, [sessionId]);
-  const toggleQuick = (event) => {
+  const openQuick = (x, y) => {
     if (quickOpen) {
       setQuickOpen(false);
       return;
     }
-    if (event) {
+    if (typeof x === "number" && typeof y === "number") {
       setQuickAnchor({
-        right: Math.max(8, window.innerWidth - event.clientX),
-        bottom: Math.max(8, window.innerHeight - event.clientY)
+        right: Math.max(8, window.innerWidth - x),
+        bottom: Math.max(8, window.innerHeight - y)
       });
     }
     setQuickOpen(true);
   };
+  const openQuickFromElement = (element) => {
+    const rect = element.getBoundingClientRect();
+    openQuick(rect.right, rect.top + rect.height / 2);
+  };
+  const beginHold = (element) => {
+    holdFiredRef.current = false;
+    window.clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = window.setTimeout(() => {
+      holdFiredRef.current = true;
+      openQuickFromElement(element);
+    }, 420);
+  };
+  const endHold = () => window.clearTimeout(holdTimerRef.current);
+  (0, import_react2.useEffect)(() => () => window.clearTimeout(holdTimerRef.current), []);
   if (!expanded) {
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-root vs-trigger-wrap", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -2578,7 +2512,17 @@ function MicActivity(props) {
           "aria-expanded": quickOpen,
           disabled: Boolean(locked),
           onMouseDown: (event) => event.preventDefault(),
+          onPointerDown: (event) => {
+            if (event.button === 0) beginHold(event.currentTarget);
+          },
+          onPointerUp: endHold,
+          onPointerLeave: endHold,
+          onPointerCancel: endHold,
           onClick: () => {
+            if (holdFiredRef.current) {
+              holdFiredRef.current = false;
+              return;
+            }
             if (usable) void start();
             else {
               setPhase("feedback");
@@ -2587,9 +2531,27 @@ function MicActivity(props) {
           },
           onContextMenu: (event) => {
             event.preventDefault();
-            toggleQuick({ clientX: event.clientX, clientY: event.clientY });
+            if (holdFiredRef.current) {
+              holdFiredRef.current = false;
+              return;
+            }
+            openQuick(event.clientX, event.clientY);
           },
           children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconMic, {})
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "button",
+        {
+          type: "button",
+          className: "vs-mode-badge",
+          "data-mode": settings.mode,
+          "aria-label": settings.mode === "live" ? "\u0420\u0435\u0436\u0438\u043C: \u0432 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u043C \u0432\u0440\u0435\u043C\u0435\u043D\u0438" : "\u0420\u0435\u0436\u0438\u043C: \u043F\u043E \u043A\u043D\u043E\u043F\u043A\u0435",
+          "aria-haspopup": "menu",
+          title: modeTitle(settings),
+          onMouseDown: (event) => event.preventDefault(),
+          onClick: (event) => openQuickFromElement(event.currentTarget),
+          children: settings.mode === "live" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconLiveBars, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconRecordDot, {})
         }
       ),
       quickOpen ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -2600,6 +2562,7 @@ function MicActivity(props) {
           catalog,
           refresh,
           openSettings: voiceStudio.openSettings,
+          onStart: startWithMode,
           onClose: () => setQuickOpen(false),
           style: quickAnchor
         }
@@ -2628,10 +2591,13 @@ function MicActivity(props) {
         },
         index
       )) }),
-      live ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-live-tag", title: liveText, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-dot", "data-status": "ok" }),
-        liveText === "" ? "\u0421\u043B\u0443\u0448\u0430\u044E\u2026" : tailText(liveText, 56)
-      ] }) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-mode-chip", "data-mode": live ? "live" : "utterance", title: modeTitle(settings), children: [
+        live ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconLiveBars, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconRecordDot, {}),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: live ? "\u0436\u0438\u0432\u043E\u0439" : "\u043A\u043D\u043E\u043F\u043A\u0430" }),
+        live ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-mode-timer", children: "\u0441\u0442\u043E\u043F \u0432\u0440\u0443\u0447\u043D\u0443\u044E" }) : null,
+        !live && settings.vad.autoStop ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-mode-timer", children: silence > 200 ? `${secondsText(silence / 1e3)} / ${secondsText(settings.vad.silenceMs / 1e3)} \u0441` : `\u0441\u0442\u043E\u043F ${secondsText(settings.vad.silenceMs / 1e3)} \u0441` }) : null,
+        !live && !settings.vad.autoStop ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-mode-timer", children: "\u0441\u0442\u043E\u043F \u0432\u0440\u0443\u0447\u043D\u0443\u044E" }) : null
+      ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         "button",
         {
@@ -2677,10 +2643,6 @@ function formatSeconds(value) {
   const minutes = Math.floor(value / 60);
   const seconds = Math.max(0, value % 60);
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-function tailText(value, max) {
-  const text = value.replace(/\s+/gu, " ").trim();
-  return text.length > max ? `\u2026${text.slice(-(max - 1))}` : text;
 }
 function Row(props) {
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-line", children: [
@@ -2746,23 +2708,23 @@ function PreparationProgress(props) {
   return null;
 }
 function MicTester(props) {
-  const [running, setRunning] = (0, import_react3.useState)(false);
-  const [db, setDb] = (0, import_react3.useState)(-100);
-  const [processedDb, setProcessedDb] = (0, import_react3.useState)(-100);
-  const [error, setError] = (0, import_react3.useState)(null);
-  const fillRef = (0, import_react3.useRef)(null);
-  const processedFillRef = (0, import_react3.useRef)(null);
-  const stopRef = (0, import_react3.useRef)(null);
-  const collectRef = (0, import_react3.useRef)([]);
-  const collectingRef = (0, import_react3.useRef)(false);
-  const [calibrating, setCalibrating] = (0, import_react3.useState)(false);
-  const [calibration, setCalibration] = (0, import_react3.useState)(null);
-  const stop = (0, import_react3.useCallback)(() => {
+  const [running, setRunning] = (0, import_react2.useState)(false);
+  const [db, setDb] = (0, import_react2.useState)(-100);
+  const [processedDb, setProcessedDb] = (0, import_react2.useState)(-100);
+  const [error, setError] = (0, import_react2.useState)(null);
+  const fillRef = (0, import_react2.useRef)(null);
+  const processedFillRef = (0, import_react2.useRef)(null);
+  const stopRef = (0, import_react2.useRef)(null);
+  const collectRef = (0, import_react2.useRef)([]);
+  const collectingRef = (0, import_react2.useRef)(false);
+  const [calibrating, setCalibrating] = (0, import_react2.useState)(false);
+  const [calibration, setCalibration] = (0, import_react2.useState)(null);
+  const stop = (0, import_react2.useCallback)(() => {
     stopRef.current?.();
     stopRef.current = null;
     setRunning(false);
   }, []);
-  (0, import_react3.useEffect)(() => stop, [stop]);
+  (0, import_react2.useEffect)(() => stop, [stop]);
   const start = async () => {
     setError(null);
     try {
@@ -2888,21 +2850,20 @@ function SettingsPage(props) {
   const ctx = props.voiceStudio.ctx;
   const settings = useSettings();
   const { catalog, error, refresh } = useSpeechCatalog(ctx);
-  (0, import_react3.useEffect)(() => {
+  (0, import_react2.useEffect)(() => {
     const providers2 = catalog?.providers ?? [];
     if (providers2.length === 0) return;
     if (settings.providerId !== "" && !providers2.some((item) => item.id === settings.providerId)) {
       updateSettings((current2) => ({ ...current2, providerId: "" }));
     }
   }, [catalog, settings.providerId]);
-  const [devices, setDevices] = (0, import_react3.useState)([]);
-  const [deviceError, setDeviceError] = (0, import_react3.useState)(null);
-  const [busy, setBusy] = (0, import_react3.useState)(false);
-  const [actionError, setActionError] = (0, import_react3.useState)(null);
-  const history = useHistory();
-  const [newFrom, setNewFrom] = (0, import_react3.useState)("");
-  const [newTo, setNewTo] = (0, import_react3.useState)("");
-  const refreshDevices = (0, import_react3.useCallback)(async () => {
+  const [devices, setDevices] = (0, import_react2.useState)([]);
+  const [deviceError, setDeviceError] = (0, import_react2.useState)(null);
+  const [busy, setBusy] = (0, import_react2.useState)(false);
+  const [actionError, setActionError] = (0, import_react2.useState)(null);
+  const [newFrom, setNewFrom] = (0, import_react2.useState)("");
+  const [newTo, setNewTo] = (0, import_react2.useState)("");
+  const refreshDevices = (0, import_react2.useCallback)(async () => {
     try {
       const list = await listInputDevices();
       setDevices(list);
@@ -2911,7 +2872,7 @@ function SettingsPage(props) {
       setDeviceError(describeFailure(failure));
     }
   }, []);
-  (0, import_react3.useEffect)(() => {
+  (0, import_react2.useEffect)(() => {
     void refreshDevices();
     const media = navigator.mediaDevices;
     if (!media?.addEventListener) return;
@@ -2965,15 +2926,15 @@ function SettingsPage(props) {
     }
     await refresh();
   };
-  const [cloudForm, setCloudForm] = (0, import_react3.useState)(loadCloudDraft);
-  const [cloudRevision, setCloudRevision] = (0, import_react3.useState)(null);
-  const [keyValue, setKeyValue] = (0, import_react3.useState)("");
-  const [cloudNotice, setCloudNotice] = (0, import_react3.useState)(null);
-  const [modelOptions, setModelOptions] = (0, import_react3.useState)([]);
-  const [modelsNotice, setModelsNotice] = (0, import_react3.useState)(null);
-  const [cloudOpen, setCloudOpen] = (0, import_react3.useState)(false);
-  const [resetOpen, setResetOpen] = (0, import_react3.useState)(false);
-  (0, import_react3.useEffect)(() => {
+  const [cloudForm, setCloudForm] = (0, import_react2.useState)(loadCloudDraft);
+  const [cloudRevision, setCloudRevision] = (0, import_react2.useState)(null);
+  const [keyValue, setKeyValue] = (0, import_react2.useState)("");
+  const [cloudNotice, setCloudNotice] = (0, import_react2.useState)(null);
+  const [modelOptions, setModelOptions] = (0, import_react2.useState)([]);
+  const [modelsNotice, setModelsNotice] = (0, import_react2.useState)(null);
+  const [cloudOpen, setCloudOpen] = (0, import_react2.useState)(false);
+  const [resetOpen, setResetOpen] = (0, import_react2.useState)(false);
+  (0, import_react2.useEffect)(() => {
     saveCloudDraft(cloudForm);
   }, [cloudForm]);
   const saveCloud = async () => {
@@ -3038,9 +2999,9 @@ function SettingsPage(props) {
       setModelsNotice(`\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u043C\u043E\u0434\u0435\u043B\u0438: ${failureText(failure)}. \u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043C\u043E\u0434\u0435\u043B\u044C \u0432\u0440\u0443\u0447\u043D\u0443\u044E \u2014 \u0435\u0441\u043B\u0438 \u0441\u0435\u0440\u0432\u0435\u0440 \u043D\u0435 \u043E\u0442\u0434\u0430\u0451\u0442 \u0441\u043F\u0438\u0441\u043E\u043A \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0443 (CORS), \u044D\u0442\u043E \u043D\u043E\u0440\u043C\u0430\u043B\u044C\u043D\u043E.`);
     }
   };
-  const [compareState, setCompareState] = (0, import_react3.useState)("idle");
-  const [compareResults, setCompareResults] = (0, import_react3.useState)([]);
-  const compareRecorder = (0, import_react3.useRef)(null);
+  const [compareState, setCompareState] = (0, import_react2.useState)("idle");
+  const [compareResults, setCompareResults] = (0, import_react2.useState)([]);
+  const compareRecorder = (0, import_react2.useRef)(null);
   const startCompare = async () => {
     setActionError(null);
     setCompareResults([]);
@@ -3101,21 +3062,21 @@ function SettingsPage(props) {
   const selectedProvider = providers.find((item) => item.id === (settings.providerId || catalog?.selection.providerId));
   const activePhase = selectedProvider?.preparation?.phase;
   const preparingNow = busy || ["downloading", "checking", "loading", "waking", "cancelling"].includes(activePhase ?? "");
-  (0, import_react3.useEffect)(() => {
+  (0, import_react2.useEffect)(() => {
     if (!preparingNow) return;
     const timer = window.setInterval(() => void refresh(), 800);
     return () => window.clearInterval(timer);
   }, [preparingNow, refresh]);
-  const autoStarted = (0, import_react3.useRef)(false);
-  (0, import_react3.useEffect)(() => {
+  const autoStarted = (0, import_react2.useRef)(false);
+  (0, import_react2.useEffect)(() => {
     if (autoStarted.current) return;
     if (!selectedProvider || selectedProvider.location !== "host-local") return;
     if (selectedProvider.preparation?.phase !== "unprepared") return;
     autoStarted.current = true;
     void prepare(selectedProvider.id);
   }, [selectedProvider, prepare]);
-  const probingRef = (0, import_react3.useRef)(null);
-  (0, import_react3.useEffect)(() => {
+  const probingRef = (0, import_react2.useRef)(null);
+  (0, import_react2.useEffect)(() => {
     if (!selectedProvider || selectedProvider.location !== "cloud") return;
     if ((selectedProvider.preparation?.phase ?? "unprepared") !== "unprepared") return;
     if (probingRef.current === selectedProvider.id) return;
@@ -3301,8 +3262,7 @@ function SettingsPage(props) {
       )
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0421\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u0435 \u0438 \u0438\u0441\u0442\u043E\u0440\u0438\u044F" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h5", { className: "vs-subhead", children: "\u0421\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u0435 \u043C\u043E\u0434\u0435\u043B\u0435\u0439" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0421\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u0435 \u043C\u043E\u0434\u0435\u043B\u0435\u0439" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u0417\u0430\u043F\u0438\u0448\u0438\u0442\u0435 \u043E\u0434\u043D\u0443 \u0444\u0440\u0430\u0437\u0443 \u2014 \u0435\u0451 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u044E\u0442 \u0432\u0441\u0435 \u0433\u043E\u0442\u043E\u0432\u044B\u0435 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u044B \u043D\u0435\u0437\u0430\u0432\u0438\u0441\u0438\u043C\u043E. \u0422\u0430\u043A \u0432\u0438\u0434\u043D\u043E, \u043A\u0442\u043E \u043A\u0430\u043A \u0441\u043B\u044B\u0448\u0438\u0442, \u043D\u0430\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0431\u044B\u0441\u0442\u0440\u043E \u043E\u0442\u0432\u0435\u0447\u0430\u0435\u0442 \u0438 \u0433\u0434\u0435 \u043E\u0448\u0438\u0431\u0430\u0435\u0442\u0441\u044F." }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -3327,43 +3287,7 @@ function SettingsPage(props) {
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-badge", children: item.ms !== void 0 ? `${item.ms} \u043C\u0441` : "\u2014" })
         ] }),
         item.text !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: item.text || "\u2205 (\u043F\u0443\u0441\u0442\u043E)" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-error", children: item.error ?? "\u043E\u0448\u0438\u0431\u043A\u0430" })
-      ] }, item.id)),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h5", { className: "vs-subhead", children: "\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0434\u0438\u043A\u0442\u043E\u0432\u043E\u043A" }),
-      history.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u041F\u043E\u043A\u0430 \u043F\u0443\u0441\u0442\u043E." }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-history", children: history.map((entry) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-history-item", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: entry.text }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-history-meta", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: new Date(entry.createdAt).toLocaleString() }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-badge", children: [
-            Math.round(entry.seconds),
-            " \u0441"
-          ] }),
-          entry.language ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-badge", children: languageLabel(entry.language) }) : null,
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { flex: 1 } }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "button",
-            {
-              type: "button",
-              className: "vs-link",
-              onClick: () => {
-                if (activeDraft) activeDraft.insertText(entry.text);
-                else void navigator.clipboard?.writeText(entry.text).catch(() => {
-                });
-              },
-              children: "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-link", onClick: () => void navigator.clipboard?.writeText(entry.text).catch(() => {
-          }), children: "\u041A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C" }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-link", onClick: () => removeHistory(entry.id), children: "\u0423\u0434\u0430\u043B\u0438\u0442\u044C" })
-        ] })
-      ] }, entry.id)) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-controls", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => exportHistory("md"), disabled: history.length === 0, children: "\u042D\u043A\u0441\u043F\u043E\u0440\u0442 .md" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => exportHistory("txt"), disabled: history.length === 0, children: "\u042D\u043A\u0441\u043F\u043E\u0440\u0442 .txt" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => exportHistory("json"), disabled: history.length === 0, children: "\u042D\u043A\u0441\u043F\u043E\u0440\u0442 .json" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-btn", onClick: () => clearHistory(), disabled: history.length === 0, children: "\u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C" })
-      ] })
+      ] }, item.id))
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", { children: "\u0428\u0443\u043C\u043E\u043F\u043E\u0434\u0430\u0432\u043B\u0435\u043D\u0438\u0435" }) }),
@@ -3677,7 +3601,7 @@ function SettingsPage(props) {
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h5", { className: "vs-subhead", children: "\u0427\u0442\u043E \u043E\u0441\u0442\u0430\u043D\u0435\u0442\u0441\u044F" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("ul", { children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "\u0412\u044B\u0431\u0440\u0430\u043D\u043D\u0430\u044F \u043C\u043E\u0434\u0435\u043B\u044C \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F \u0438 \u044F\u0437\u044B\u043A." }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0434\u0438\u043A\u0442\u043E\u0432\u043E\u043A \u0438 \u0441\u043A\u0430\u0447\u0430\u043D\u043D\u044B\u0435 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u043C\u043E\u0434\u0435\u043B\u0438." }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "\u0421\u043A\u0430\u0447\u0430\u043D\u043D\u044B\u0435 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u043C\u043E\u0434\u0435\u043B\u0438." }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "\u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B \u043E\u0431\u043B\u0430\u0447\u043D\u043E\u0433\u043E \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D\u043D\u044B\u0439 API-\u043A\u043B\u044E\u0447." })
         ] })
       ] }),

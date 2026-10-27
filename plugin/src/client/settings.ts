@@ -20,7 +20,6 @@ export type Settings = {
   vad: { autoStop: boolean; silenceMs: number; thresholdDb: number }
   ptt: { enabled: boolean; combo: string; mode: 'hold' | 'toggle' }
   text: { autoPunctuation: boolean; removeFillers: boolean; dictionary: DictEntry[] }
-  historyLimit: number
   providerId: string
   language: string
 }
@@ -40,7 +39,6 @@ export const DEFAULT_SETTINGS: Settings = {
   vad: { autoStop: true, silenceMs: 1800, thresholdDb: -42 },
   ptt: { enabled: false, combo: 'Ctrl+Shift+Space', mode: 'hold' },
   text: { autoPunctuation: true, removeFillers: false, dictionary: [] },
-  historyLimit: 50,
   providerId: '',
   language: 'ru',
 }
@@ -118,7 +116,6 @@ export function normalizeSettings(raw: unknown): Settings {
       removeFillers: bool(value.text?.removeFillers, base.text.removeFillers),
       dictionary,
     },
-    historyLimit: clamp(value.historyLimit, 0, 200, base.historyLimit),
     providerId: text(value.providerId, base.providerId),
     language: text(value.language, base.language),
   }

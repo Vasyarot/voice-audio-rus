@@ -70,6 +70,8 @@ export const CSS = `
 .vs-quick{position:fixed;right:24px;bottom:80px;z-index:70;display:flex;flex-direction:column;gap:10px;width:min(340px,84vw);max-height:66vh;overflow:auto;padding:12px;border-radius:12px;border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);background:var(--dsw-alias-bg-module-platform, #1b1d22);color:var(--dsw-alias-label-primary, inherit);box-shadow:0 18px 48px #00000066;font-size:13px}
 .vs-quick-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .vs-quick-head strong{font-size:13.5px}
+.vs-quick-actions{display:flex;gap:8px}
+.vs-quick-actions .vs-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .vs-quick-block{display:flex;flex-direction:column;gap:6px}
 .vs-quick-label{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary, #999)}
 .vs-quick-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:.5px solid var(--dsw-alias-border-l1, #ffffff14);padding-top:8px}
@@ -82,6 +84,13 @@ export const CSS = `
 .vs-dot[data-status="ok"]{background:#3fb950}
 .vs-dot[data-status="error"]{background:#e5484d}
 .vs-dot[data-status="pending"]{background:#d29922}
-.vs-live-tag{display:inline-flex;align-items:center;gap:6px;min-width:0;font-size:12px;color:var(--dsw-alias-label-secondary, #999);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vs-mode-badge{flex:none;display:inline-flex;align-items:center;justify-content:center;width:22px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-tertiary, #777);cursor:pointer}
+.vs-mode-badge:hover{background:var(--dsw-alias-interactive-bg-hover, #ffffff14);color:inherit}
+.vs-mode-badge[data-mode="live"]{color:#3fb950}
+.vs-mode-badge[data-mode="utterance"]{color:var(--dsw-alias-brand-primary, #2f6bff)}
+.vs-mode-chip{flex:none;display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);font-size:11.5px;color:var(--dsw-alias-label-secondary, #999);white-space:nowrap}
+.vs-mode-chip[data-mode="live"]{color:#3fb950;border-color:#3fb95055}
+.vs-mode-chip[data-mode="utterance"]{color:var(--dsw-alias-brand-primary, #2f6bff);border-color:#2f6bff55}
+.vs-mode-timer{font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-tertiary, #888)}
 .vs-quick .vs-input,.vs-quick .vs-select{width:100%}
 `

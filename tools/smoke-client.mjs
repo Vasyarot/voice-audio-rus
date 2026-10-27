@@ -150,6 +150,7 @@ const micHtml = renderToString(
 )
 if (!micHtml.includes('aria-label="Голосовой ввод"')) throw new Error('microphone trigger did not render')
 if (!micHtml.includes('aria-haspopup="menu"')) throw new Error('microphone must expose the popup menu trigger')
+if (!micHtml.includes('aria-label="Режим: в реальном времени"')) throw new Error('the mode badge must show the live mode')
 if (!micHtml.includes('aria-expanded="false"')) throw new Error('quick menu must start closed')
 if (micHtml.includes('aria-expanded="true"')) throw new Error('quick menu opened by default')
 
@@ -161,7 +162,7 @@ const sections = [
   'Модели распознавания речи',
   'Режим диктовки',
   'Микрофон',
-  'Сравнение и история',
+  'Сравнение моделей',
   'Шумоподавление',
   'Обработка звука',
   'Тишина и клавиши',
@@ -174,8 +175,8 @@ for (const marker of sections) {
   if (at < cursor) throw new Error(`settings section out of order: ${marker}`)
   cursor = at
 }
-for (const nested of ['Сравнение моделей', 'История диктовок']) {
-  if (!settingsHtml.includes(nested)) throw new Error(`merged section missing part: ${nested}`)
+for (const gone of ['История диктовок', 'Экспорт .md', 'Пока пусто']) {
+  if (settingsHtml.includes(gone)) throw new Error(`history must be gone from the settings page: ${gone}`)
 }
 if (settingsHtml.includes('Облачный провайдер')) throw new Error('duplicated cloud section is still rendered')
 if (!settingsHtml.includes('Вернуть настройки по умолчанию')) throw new Error('reset button is missing')
@@ -205,7 +206,6 @@ const panelSettings = {
   vad: { autoStop: true, silenceMs: 1800, thresholdDb: -42 },
   ptt: { enabled: false, combo: 'Ctrl+Shift+Space', mode: 'hold' },
   text: { autoPunctuation: true, removeFillers: false, dictionary: [] },
-  historyLimit: 50,
   providerId: 'cloud-openai',
   language: 'ru',
 }
@@ -224,10 +224,11 @@ const panelHtml = renderToString(
     },
     refresh: () => {},
     openSettings() {},
+    onStart() {},
     onClose() {},
   }),
 )
-for (const marker of ['По кнопке', 'В реальном времени', 'Модель распознавания', 'Облачная модель', 'Подтянуть модели', 'Все настройки']) {
+for (const marker of ['По кнопке', 'В реальном времени', 'Записать', 'Модель распознавания', 'Облачная модель', 'Подтянуть модели', 'Все настройки']) {
   if (!panelHtml.includes(marker)) throw new Error(`quick panel missing: ${marker}`)
 }
 if (!panelHtml.includes('★ лучшая для речи')) throw new Error('quick panel must mark the recommended model')

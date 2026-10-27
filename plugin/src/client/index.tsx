@@ -5,7 +5,6 @@ import type { ReactNode } from 'react'
 import TYPERT_REMOTE from '../vendor/speech-remote.js'
 import { attachSuppressorAsync, audioBase64, listInputDevices, requestMicrophonePermission, RecorderError, VoiceRecorder, wavFromSamples } from './audio'
 import type { AudioDevice } from './audio'
-import { addHistory, clearHistory, exportHistory, removeHistory, useHistory } from './history'
 import { normalizeSettings, resetSettings, updateSettings, useSettings } from './settings'
 import type { Settings } from './settings'
 import { CSS } from './styles'
@@ -67,6 +66,43 @@ function IconGear(props: { size?: number }) {
       <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   )
+}
+
+/** Live dictation: equaliser bars. */
+function IconLiveBars(props: { size?: number }) {
+  const size = props.size ?? 13
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 10v4M9 7v10M15 7v10M19 10v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** One-shot dictation: a record dot in a ring. */
+function IconRecordDot(props: { size?: number }) {
+  const size = props.size ?? 13
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="6.6" stroke="currentColor" strokeWidth="1.7" />
+      <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+    </svg>
+  )
+}
+
+function secondsText(value: number): string {
+  const rounded = Math.round(value * 10) / 10
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+}
+
+/** Tooltip that explains the active mode and when the capture stops by itself. */
+function modeTitle(settings: Settings): string {
+  if (settings.mode === 'live') {
+    return `Живой режим: текст дописывается каждые ${secondsText(settings.live.chunkSeconds)} с речи и после паузы ${secondsText(settings.live.pauseMs / 1000)} с; запись останавливается вручную`
+  }
+  const stop = settings.vad.autoStop
+    ? `авто-стоп после ${secondsText(settings.vad.silenceMs / 1000)} с тишины`
+    : 'авто-стоп по тишине выключен'
+  return `По кнопке: распознавание после остановки, ${stop}`
 }
 
 // ---------------------------------------------------------------- speech catalog
@@ -306,6 +342,8 @@ type QuickProps = {
   refresh: () => Promise<void> | void
   openSettings: () => void
   onClose: () => void
+  /** Start a capture right from the menu, switching the mode first. */
+  onStart: (mode: Settings['mode']) => void
   /** Viewport anchor: the composer panel is fixed, so the row cannot clip it. */
   style?: React.CSSProperties
 }
@@ -496,6 +534,16 @@ export function QuickSettings(props: QuickProps) {
           <IconClose />
         </button>
       </div>
+      <div className="vs-quick-actions">
+        <button type="button" className="vs-btn" data-kind="primary" onClick={() => props.onStart('utterance')}>
+          <IconRecordDot size={12} />
+          Записать
+        </button>
+        <button type="button" className="vs-btn" onClick={() => props.onStart('live')}>
+          <IconLiveBars size={12} />
+          В реальном времени
+        </button>
+      </div>
       <div className="vs-quick-block">
         <span className="vs-quick-label">Режим</span>
         <div className="vs-seg">
@@ -622,9 +670,6 @@ type ActivityProps = {
   voiceStudio: { ctx: any; openSettings: () => void }
 }
 
-/** Loopback used by the history page to insert into the active draft. */
-let activeDraft: { insertText: (text: string) => boolean } | null = null
-
 /** One live (incremental) dictation session: fragments are cut while recording. */
 type LiveSession = {
   timer: number
@@ -653,7 +698,8 @@ function MicActivity(props: ActivityProps) {
   const [message, setMessage] = useState('')
   const [seconds, setSeconds] = useState(0)
   const [live, setLive] = useState(false)
-  const [liveText, setLiveText] = useState('')
+  /** Milliseconds of the current silence run, shown while VAD can stop the capture. */
+  const [silence, setSilence] = useState(0)
   const [quickOpen, setQuickOpen] = useState(false)
   const [quickAnchor, setQuickAnchor] = useState<React.CSSProperties | undefined>(undefined)
   const liveRef = useRef<LiveSession | null>(null)
@@ -668,25 +714,12 @@ function MicActivity(props: ActivityProps) {
   const meterRef = useRef<Array<HTMLSpanElement | null>>([])
   const finishRef = useRef<() => void>(() => {})
   const startRef = useRef<() => void>(() => {})
+  const holdTimerRef = useRef(0)
+  const holdFiredRef = useRef(false)
 
   const selection = catalog?.selection
   const provider = catalog?.providers.find((item) => item.id === selection?.providerId)
   const usable = provider != null && ['ready', 'standby', 'waking'].includes(provider.preparation?.phase ?? 'ready')
-
-  useEffect(() => {
-    activeDraft = {
-      insertText: (text: string) => {
-        try {
-          return Boolean(inputActions.insertText(text, inputActions.captureInsertion()))
-        } catch {
-          return false
-        }
-      },
-    }
-    return () => {
-      activeDraft = null
-    }
-  }, [inputActions])
 
   const cancel = useCallback(() => {
     insertTokenRef.current += 1
@@ -699,7 +732,6 @@ function MicActivity(props: ActivityProps) {
       if (live.timer) window.clearInterval(live.timer)
     }
     setLive(false)
-    setLiveText('')
     abortRef.current?.abort()
     abortRef.current = null
     const recorder = recorderRef.current
@@ -708,6 +740,7 @@ function MicActivity(props: ActivityProps) {
     setPhase('idle')
     setMessage('')
     setSeconds(0)
+    setSilence(0)
   }, [])
 
   // ---- live mode: cut fragments while the microphone is open -----------------
@@ -745,7 +778,6 @@ function MicActivity(props: ActivityProps) {
       if (!state || !writer) return
       const next = joinLiveText(state.text, piece)
       state.text = next
-      setLiveText(next)
       writer.push(next)
     },
     [],
@@ -847,8 +879,8 @@ function MicActivity(props: ActivityProps) {
     selectionRef.current = { providerId: currentProvider.id, language: currentCatalog.selection.language }
     const recorder = new VoiceRecorder(settingsRef.current)
     setMessage('')
-    setLiveText('')
     setSeconds(0)
+    setSilence(0)
     setPhase('requesting')
     try {
       await recorder.start(true)
@@ -888,7 +920,6 @@ function MicActivity(props: ActivityProps) {
     if (state.timer) window.clearInterval(state.timer)
     phaseRef.current = 'transcribing'
     setPhase('transcribing')
-    const elapsed = recorder.elapsedSeconds()
     state.busy = true
     state.queue = state.queue.then(async () => {
       await cutLive()
@@ -902,30 +933,18 @@ function MicActivity(props: ActivityProps) {
       liveRef.current = null
       recorderRef.current = null
       setLive(false)
-      setLiveText('')
       const text = state.text.trim()
       if (text === '') {
         setPhase('feedback')
         setMessage('Речь не распознана — попробуйте ближе к микрофону.')
         return
       }
-      addHistory(
-        {
-          text,
-          seconds: Math.round(elapsed),
-          providerId: selectionRef.current?.providerId ?? '',
-          language: selectionRef.current?.language ?? '',
-          deviceLabel: settingsRef.current.deviceLabel,
-        },
-        settingsRef.current.historyLimit,
-      )
       setPhase('idle')
       setMessage('')
     } catch (failure) {
       liveRef.current = null
       recorderRef.current = null
       setLive(false)
-      setLiveText('')
       setPhase('feedback')
       setMessage(describeFailure(failure))
     } finally {
@@ -933,7 +952,7 @@ function MicActivity(props: ActivityProps) {
     }
   }, [appendLive, cutLive, refresh])
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (modeOverride?: Settings['mode']) => {
     if (phaseRef.current !== 'idle' || locked) return
     // A previous session's writer must not append its leftovers into the new one.
     writerRef.current?.cancel()
@@ -950,7 +969,8 @@ function MicActivity(props: ActivityProps) {
       setMessage(`Провайдер не готов: ${phaseText(currentProvider)}. Подготовьте модель в настройках.`)
       return
     }
-    if (settingsRef.current.mode === 'live') {
+    const mode = modeOverride ?? settingsRef.current.mode
+    if (mode === 'live') {
       await startLive()
       return
     }
@@ -970,6 +990,16 @@ function MicActivity(props: ActivityProps) {
     setSeconds(0)
     setPhase('recording')
   }, [inputActions, locked, startLive])
+
+  /** Menu shortcut: switch the mode and start that kind of capture right away. */
+  const startWithMode = useCallback(
+    (mode: Settings['mode']) => {
+      updateSettings((current) => ({ ...current, mode }))
+      setQuickOpen(false)
+      void start(mode)
+    },
+    [start],
+  )
 
   const finish = useCallback(async () => {
     if (liveRef.current) {
@@ -1012,19 +1042,9 @@ function MicActivity(props: ActivityProps) {
         return
       }
       const text = postProcess(transcript.text, settingsRef.current)
-      addHistory(
-        {
-          text,
-          seconds: Math.round(transcript.audioSeconds ?? 0),
-          providerId: selectionValue?.providerId ?? '',
-          language: selectionValue?.language ?? '',
-          deviceLabel: settingsRef.current.deviceLabel,
-        },
-        settingsRef.current.historyLimit,
-      )
       const applied = await insertTextWithRetry(text)
       setPhase(applied ? 'idle' : 'feedback')
-      setMessage(applied ? '' : 'Не удалось вставить текст в черновик — он сохранён в истории.')
+      setMessage(applied ? '' : 'Не удалось вставить текст в черновик.')
     } catch (failure) {
       if (!runRef.cancelled) {
         setPhase('feedback')
@@ -1052,6 +1072,7 @@ function MicActivity(props: ActivityProps) {
     const liveMode = settingsRef.current.mode === 'live'
     let raf = 0
     let silentMs = 0
+    let publishedSilence = -1
     let last = performance.now()
     const tick = () => {
       const recorder = recorderRef.current
@@ -1071,8 +1092,15 @@ function MicActivity(props: ActivityProps) {
         if (vad.autoStop && !liveMode) {
           if (db > vad.thresholdDb) silentMs = 0
           else silentMs += delta
+          // Publish the silence run so the row can show the remaining time.
+          const bucket = Math.round(silentMs / 100)
+          if (bucket !== publishedSilence) {
+            publishedSilence = bucket
+            setSilence(silentMs)
+          }
           if (silentMs >= vad.silenceMs) {
             silentMs = 0
+            setSilence(0)
             finishRef.current()
             return
           }
@@ -1161,20 +1189,38 @@ function MicActivity(props: ActivityProps) {
     if (phaseRef.current !== 'recording') setPhase('idle')
   }, [sessionId])
 
-  const toggleQuick = (event?: { clientX: number; clientY: number }) => {
+  /** Open / close the menu; with coordinates it grows up-left from the click. */
+  const openQuick = (x?: number, y?: number) => {
     if (quickOpen) {
       setQuickOpen(false)
       return
     }
-    if (event) {
-      // Menu semantics: the panel grows up-left from the click, never off screen.
+    if (typeof x === 'number' && typeof y === 'number') {
       setQuickAnchor({
-        right: Math.max(8, window.innerWidth - event.clientX),
-        bottom: Math.max(8, window.innerHeight - event.clientY),
+        right: Math.max(8, window.innerWidth - x),
+        bottom: Math.max(8, window.innerHeight - y),
       })
     }
     setQuickOpen(true)
   }
+
+  const openQuickFromElement = (element: Element) => {
+    const rect = element.getBoundingClientRect()
+    openQuick(rect.right, rect.top + rect.height / 2)
+  }
+
+  // Holding the microphone reveals the menu without recording: a quick choice
+  // between "record" and "live". A short click still starts the current mode.
+  const beginHold = (element: Element) => {
+    holdFiredRef.current = false
+    window.clearTimeout(holdTimerRef.current)
+    holdTimerRef.current = window.setTimeout(() => {
+      holdFiredRef.current = true
+      openQuickFromElement(element)
+    }, 420)
+  }
+  const endHold = () => window.clearTimeout(holdTimerRef.current)
+  useEffect(() => () => window.clearTimeout(holdTimerRef.current), [])
 
   if (!expanded) {
     return (
@@ -1188,7 +1234,17 @@ function MicActivity(props: ActivityProps) {
           aria-expanded={quickOpen}
           disabled={Boolean(locked)}
           onMouseDown={(event) => event.preventDefault()}
+          onPointerDown={(event) => {
+            if (event.button === 0) beginHold(event.currentTarget)
+          }}
+          onPointerUp={endHold}
+          onPointerLeave={endHold}
+          onPointerCancel={endHold}
           onClick={() => {
+            if (holdFiredRef.current) {
+              holdFiredRef.current = false
+              return
+            }
             if (usable) void start()
             else {
               setPhase('feedback')
@@ -1197,10 +1253,26 @@ function MicActivity(props: ActivityProps) {
           }}
           onContextMenu={(event) => {
             event.preventDefault()
-            toggleQuick({ clientX: event.clientX, clientY: event.clientY })
+            if (holdFiredRef.current) {
+              holdFiredRef.current = false
+              return
+            }
+            openQuick(event.clientX, event.clientY)
           }}
         >
           <IconMic />
+        </button>
+        <button
+          type="button"
+          className="vs-mode-badge"
+          data-mode={settings.mode}
+          aria-label={settings.mode === 'live' ? 'Режим: в реальном времени' : 'Режим: по кнопке'}
+          aria-haspopup="menu"
+          title={modeTitle(settings)}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={(event) => openQuickFromElement(event.currentTarget)}
+        >
+          {settings.mode === 'live' ? <IconLiveBars /> : <IconRecordDot />}
         </button>
         {quickOpen ? (
           <QuickSettings
@@ -1209,6 +1281,7 @@ function MicActivity(props: ActivityProps) {
             catalog={catalog}
             refresh={refresh}
             openSettings={voiceStudio.openSettings}
+            onStart={startWithMode}
             onClose={() => setQuickOpen(false)}
             style={quickAnchor}
           />
@@ -1240,12 +1313,19 @@ function MicActivity(props: ActivityProps) {
               />
             ))}
           </span>
-          {live ? (
-            <span className="vs-live-tag" title={liveText}>
-              <span className="vs-dot" data-status="ok" />
-              {liveText === '' ? 'Слушаю…' : tailText(liveText, 56)}
-            </span>
-          ) : null}
+          <span className="vs-mode-chip" data-mode={live ? 'live' : 'utterance'} title={modeTitle(settings)}>
+            {live ? <IconLiveBars /> : <IconRecordDot />}
+            <span>{live ? 'живой' : 'кнопка'}</span>
+            {live ? <span className="vs-mode-timer">стоп вручную</span> : null}
+            {!live && settings.vad.autoStop ? (
+              <span className="vs-mode-timer">
+                {silence > 200
+                  ? `${secondsText(silence / 1000)} / ${secondsText(settings.vad.silenceMs / 1000)} с`
+                  : `стоп ${secondsText(settings.vad.silenceMs / 1000)} с`}
+              </span>
+            ) : null}
+            {!live && !settings.vad.autoStop ? <span className="vs-mode-timer">стоп вручную</span> : null}
+          </span>
           <button
             type="button"
             className="vs-round"
@@ -1298,12 +1378,6 @@ function formatSeconds(value: number): string {
   const minutes = Math.floor(value / 60)
   const seconds = Math.max(0, value % 60)
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-}
-
-/** Tail of a growing text: the capture row shows the freshest words, not the start. */
-function tailText(value: string, max: number): string {
-  const text = value.replace(/\s+/gu, ' ').trim()
-  return text.length > max ? `…${text.slice(-(max - 1))}` : text
 }
 
 // ---------------------------------------------------------------- settings page
@@ -1553,7 +1627,6 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
   const [deviceError, setDeviceError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const history = useHistory()
   const [newFrom, setNewFrom] = useState('')
   const [newTo, setNewTo] = useState('')
 
@@ -2017,8 +2090,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         />
       </details>
 <details className="vs-section">
-        <summary><h4>Сравнение и история</h4></summary>
-        <h5 className="vs-subhead">Сравнение моделей</h5>
+        <summary><h4>Сравнение моделей</h4></summary>
         <p className="vs-hint">
           Запишите одну фразу — её распознают все готовые провайдеры независимо. Так видно, кто как слышит,
           насколько быстро отвечает и где ошибается.
@@ -2051,51 +2123,6 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             {item.text !== undefined ? <p>{item.text || '∅ (пусто)'}</p> : <p className="vs-error">{item.error ?? 'ошибка'}</p>}
           </div>
         ))}
-        <h5 className="vs-subhead">История диктовок</h5>
-        {history.length === 0 ? <p className="vs-hint">Пока пусто.</p> : null}
-        <div className="vs-history">
-          {history.map((entry) => (
-            <div className="vs-history-item" key={entry.id}>
-              <p>{entry.text}</p>
-              <div className="vs-history-meta">
-                <span>{new Date(entry.createdAt).toLocaleString()}</span>
-                <span className="vs-badge">{Math.round(entry.seconds)} с</span>
-                {entry.language ? <span className="vs-badge">{languageLabel(entry.language)}</span> : null}
-                <span style={{ flex: 1 }} />
-                <button
-                  type="button"
-                  className="vs-link"
-                  onClick={() => {
-                    if (activeDraft) activeDraft.insertText(entry.text)
-                    else void navigator.clipboard?.writeText(entry.text).catch(() => {})
-                  }}
-                >
-                  Вставить
-                </button>
-                <button type="button" className="vs-link" onClick={() => void navigator.clipboard?.writeText(entry.text).catch(() => {})}>
-                  Копировать
-                </button>
-                <button type="button" className="vs-link" onClick={() => removeHistory(entry.id)}>
-                  Удалить
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="vs-controls">
-          <button type="button" className="vs-btn" onClick={() => exportHistory('md')} disabled={history.length === 0}>
-            Экспорт .md
-          </button>
-          <button type="button" className="vs-btn" onClick={() => exportHistory('txt')} disabled={history.length === 0}>
-            Экспорт .txt
-          </button>
-          <button type="button" className="vs-btn" onClick={() => exportHistory('json')} disabled={history.length === 0}>
-            Экспорт .json
-          </button>
-          <button type="button" className="vs-btn" onClick={() => clearHistory()} disabled={history.length === 0}>
-            Очистить
-          </button>
-        </div>
       </details>
 <details className="vs-section">
         <summary><h4>Шумоподавление</h4></summary>
@@ -2433,7 +2460,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
               <h5 className="vs-subhead">Что останется</h5>
               <ul>
                 <li>Выбранная модель распознавания и язык.</li>
-                <li>История диктовок и скачанные локальные модели.</li>
+                <li>Скачанные локальные модели.</li>
                 <li>Параметры облачного провайдера и сохранённый API-ключ.</li>
               </ul>
             </div>
