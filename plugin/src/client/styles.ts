@@ -25,6 +25,7 @@ export const CSS = `
 .vs-section summary::before{content:'▸';font-size:11px;color:var(--dsw-alias-label-tertiary, #777);transition:transform .15s ease}
 .vs-section[open] summary::before{transform:rotate(90deg)}
 .vs-section summary h4{margin:0}
+.vs-subhead{margin:4px 0 0;font-size:13px;font-weight:600;color:var(--dsw-alias-label-secondary, inherit);opacity:.85}
 .vs-hint{margin:0;font-size:12.5px;color:var(--dsw-alias-label-tertiary, #777)}
 .vs-hint[data-status="ok"]{color:#3fb950}
 .vs-hint[data-status="error"]{color:#e5484d}

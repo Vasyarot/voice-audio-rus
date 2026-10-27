@@ -151,9 +151,26 @@ const settings = registered.find((item) => item.options?.name === 'plugins.bundl
 const settingsHtml = renderToString(
   React.createElement(settings.component, { voiceStudio: { ctx }, t: (key) => key }),
 )
-for (const marker of ['Микрофон', 'Шумоподавление', 'Обработка звука', 'История диктовок']) {
-  if (!settingsHtml.includes(marker)) throw new Error(`settings page missing section: ${marker}`)
+const sections = [
+  'Модели распознавания речи',
+  'Микрофон',
+  'Сравнение и история',
+  'Шумоподавление',
+  'Обработка звука',
+  'Тишина и клавиши',
+  'Текст',
+]
+let cursor = -1
+for (const marker of sections) {
+  const at = settingsHtml.indexOf(`<h4>${marker}</h4>`)
+  if (at < 0) throw new Error(`settings page missing section: ${marker}`)
+  if (at < cursor) throw new Error(`settings section out of order: ${marker}`)
+  cursor = at
 }
+for (const nested of ['Сравнение моделей', 'История диктовок']) {
+  if (!settingsHtml.includes(nested)) throw new Error(`merged section missing part: ${nested}`)
+}
+if (settingsHtml.includes('Облачный провайдер')) throw new Error('duplicated cloud section is still rendered')
 
 console.log('render smoke passed, settings page bytes:', settingsHtml.length)
 console.log('smoke test passed')

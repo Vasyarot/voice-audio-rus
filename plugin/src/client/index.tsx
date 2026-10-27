@@ -1322,88 +1322,6 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           small ≈ 360 МБ (точнее). Для максимального качества можно выбрать облачный провайдер.
         </p>
       </details>
-<details className="vs-section">
-        <summary><h4>Сравнение моделей</h4></summary>
-        <p className="vs-hint">
-          Запишите одну фразу — её распознают все готовые провайдеры независимо. Так видно, кто как слышит,
-          насколько быстро отвечает и где ошибается.
-        </p>
-        <div className="vs-controls">
-          <button
-            type="button"
-            className="vs-btn"
-            data-kind="primary"
-            disabled={compareState === 'running'}
-            onClick={() => {
-              if (compareState === 'recording') void stopCompare()
-              else if (compareState === 'idle') void startCompare()
-            }}
-          >
-            {compareState === 'recording' ? 'Остановить и сравнить' : compareState === 'running' ? 'Распознавание…' : 'Записать тест'}
-          </button>
-          {compareResults.length > 0 ? (
-            <button type="button" className="vs-btn" onClick={() => setCompareResults([])}>
-              Очистить
-            </button>
-          ) : null}
-        </div>
-        {compareResults.map((item) => (
-          <div className="vs-history-item" key={item.id}>
-            <div className="vs-history-meta">
-              <strong>{item.name}</strong>
-              <span className="vs-badge">{item.ms !== undefined ? `${item.ms} мс` : '—'}</span>
-            </div>
-            {item.text !== undefined ? <p>{item.text || '∅ (пусто)'}</p> : <p className="vs-error">{item.error ?? 'ошибка'}</p>}
-          </div>
-        ))}
-      </details>
-<details className="vs-section">
-        <summary><h4>История диктовок</h4></summary>
-        {history.length === 0 ? <p className="vs-hint">Пока пусто.</p> : null}
-        <div className="vs-history">
-          {history.map((entry) => (
-            <div className="vs-history-item" key={entry.id}>
-              <p>{entry.text}</p>
-              <div className="vs-history-meta">
-                <span>{new Date(entry.createdAt).toLocaleString()}</span>
-                <span className="vs-badge">{Math.round(entry.seconds)} с</span>
-                {entry.language ? <span className="vs-badge">{languageLabel(entry.language)}</span> : null}
-                <span style={{ flex: 1 }} />
-                <button
-                  type="button"
-                  className="vs-link"
-                  onClick={() => {
-                    if (activeDraft) activeDraft.insertText(entry.text)
-                    else void navigator.clipboard?.writeText(entry.text).catch(() => {})
-                  }}
-                >
-                  Вставить
-                </button>
-                <button type="button" className="vs-link" onClick={() => void navigator.clipboard?.writeText(entry.text).catch(() => {})}>
-                  Копировать
-                </button>
-                <button type="button" className="vs-link" onClick={() => removeHistory(entry.id)}>
-                  Удалить
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="vs-controls">
-          <button type="button" className="vs-btn" onClick={() => exportHistory('md')} disabled={history.length === 0}>
-            Экспорт .md
-          </button>
-          <button type="button" className="vs-btn" onClick={() => exportHistory('txt')} disabled={history.length === 0}>
-            Экспорт .txt
-          </button>
-          <button type="button" className="vs-btn" onClick={() => exportHistory('json')} disabled={history.length === 0}>
-            Экспорт .json
-          </button>
-          <button type="button" className="vs-btn" onClick={() => clearHistory()} disabled={history.length === 0}>
-            Очистить
-          </button>
-        </div>
-      </details>
 <details className="vs-section" open>
         <summary><h4>Микрофон</h4></summary>
         <Row
@@ -1449,6 +1367,87 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             }))
           }
         />
+      </details>
+<details className="vs-section">
+        <summary><h4>Сравнение и история</h4></summary>
+        <h5 className="vs-subhead">Сравнение моделей</h5>
+        <p className="vs-hint">
+          Запишите одну фразу — её распознают все готовые провайдеры независимо. Так видно, кто как слышит,
+          насколько быстро отвечает и где ошибается.
+        </p>
+        <div className="vs-controls">
+          <button
+            type="button"
+            className="vs-btn"
+            data-kind="primary"
+            disabled={compareState === 'running'}
+            onClick={() => {
+              if (compareState === 'recording') void stopCompare()
+              else if (compareState === 'idle') void startCompare()
+            }}
+          >
+            {compareState === 'recording' ? 'Остановить и сравнить' : compareState === 'running' ? 'Распознавание…' : 'Записать тест'}
+          </button>
+          {compareResults.length > 0 ? (
+            <button type="button" className="vs-btn" onClick={() => setCompareResults([])}>
+              Очистить
+            </button>
+          ) : null}
+        </div>
+        {compareResults.map((item) => (
+          <div className="vs-history-item" key={item.id}>
+            <div className="vs-history-meta">
+              <strong>{item.name}</strong>
+              <span className="vs-badge">{item.ms !== undefined ? `${item.ms} мс` : '—'}</span>
+            </div>
+            {item.text !== undefined ? <p>{item.text || '∅ (пусто)'}</p> : <p className="vs-error">{item.error ?? 'ошибка'}</p>}
+          </div>
+        ))}
+        <h5 className="vs-subhead">История диктовок</h5>
+        {history.length === 0 ? <p className="vs-hint">Пока пусто.</p> : null}
+        <div className="vs-history">
+          {history.map((entry) => (
+            <div className="vs-history-item" key={entry.id}>
+              <p>{entry.text}</p>
+              <div className="vs-history-meta">
+                <span>{new Date(entry.createdAt).toLocaleString()}</span>
+                <span className="vs-badge">{Math.round(entry.seconds)} с</span>
+                {entry.language ? <span className="vs-badge">{languageLabel(entry.language)}</span> : null}
+                <span style={{ flex: 1 }} />
+                <button
+                  type="button"
+                  className="vs-link"
+                  onClick={() => {
+                    if (activeDraft) activeDraft.insertText(entry.text)
+                    else void navigator.clipboard?.writeText(entry.text).catch(() => {})
+                  }}
+                >
+                  Вставить
+                </button>
+                <button type="button" className="vs-link" onClick={() => void navigator.clipboard?.writeText(entry.text).catch(() => {})}>
+                  Копировать
+                </button>
+                <button type="button" className="vs-link" onClick={() => removeHistory(entry.id)}>
+                  Удалить
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="vs-controls">
+          <button type="button" className="vs-btn" onClick={() => exportHistory('md')} disabled={history.length === 0}>
+            Экспорт .md
+          </button>
+          <button type="button" className="vs-btn" onClick={() => exportHistory('txt')} disabled={history.length === 0}>
+            Экспорт .txt
+          </button>
+          <button type="button" className="vs-btn" onClick={() => exportHistory('json')} disabled={history.length === 0}>
+            Экспорт .json
+          </button>
+          <button type="button" className="vs-btn" onClick={() => clearHistory()} disabled={history.length === 0}>
+            Очистить
+          </button>
+        </div>
       </details>
 <details className="vs-section">
         <summary><h4>Шумоподавление</h4></summary>
@@ -1667,56 +1666,6 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             </button>
           </div>
         </div>
-      </details>
-<details className="vs-section">
-        <summary><h4>Облачный провайдер</h4></summary>
-        <p className="vs-hint">
-          OpenAI-совместимый API: можно указать свой сервер, модель и ссылку на ключ. Ключ хранится в защищённом
-          хранилище DSH (credentials) и никогда не возвращается в интерфейс; в конфиге остаётся только имя ссылки.
-        </p>
-        <Row label="Base URL" hint="Например https://api.openai.com/v1 или адрес локального shim-сервера.">
-          <input
-            className="vs-input"
-            value={cloudForm.baseURL}
-            placeholder="https://api.openai.com/v1"
-            onChange={(event) => setCloudForm((current) => ({ ...current, baseURL: event.target.value }))}
-          />
-        </Row>
-        <Row label="Модель" hint="whisper-1, gpt-4o-transcribe или имя модели на вашем сервере.">
-          <input
-            className="vs-input"
-            value={cloudForm.model}
-            placeholder="whisper-1"
-            onChange={(event) => setCloudForm((current) => ({ ...current, model: event.target.value }))}
-          />
-        </Row>
-        <Row label="Ссылка на ключ" hint="Имя записи в credentials или переменной окружения.">
-          <input
-            className="vs-input"
-            value={cloudForm.apiKeyEnv}
-            placeholder="OPENAI_API_KEY"
-            onChange={(event) => setCloudForm((current) => ({ ...current, apiKeyEnv: event.target.value }))}
-          />
-        </Row>
-        <div className="vs-controls">
-          <button type="button" className="vs-btn" data-kind="primary" onClick={() => void saveCloud()}>
-            Сохранить параметры
-          </button>
-        </div>
-        <Row label="Ключ API" hint="Передаётся только на сервер; после сохранения поле очищается.">
-          <input
-            className="vs-input"
-            type="password"
-            autoComplete="off"
-            value={keyValue}
-            placeholder="sk-…"
-            onChange={(event) => setKeyValue(event.target.value)}
-          />
-          <button type="button" className="vs-btn" onClick={() => void saveKey()}>
-            Сохранить ключ
-          </button>
-        </Row>
-        {cloudNotice ? <p className="vs-hint">{cloudNotice}</p> : null}
       </details>
       <div className="vs-footer-action">
         <button type="button" className="vs-btn" data-kind="danger" onClick={() => resetSettings()}>
