@@ -149,9 +149,9 @@ const micHtml = renderToString(
   }),
 )
 if (!micHtml.includes('aria-label="Голосовой ввод"')) throw new Error('microphone trigger did not render')
-if (!micHtml.includes('aria-label="Быстрые настройки голосового ввода"')) throw new Error('quick settings trigger did not render')
-if (!micHtml.includes('aria-expanded="false"')) throw new Error('quick settings must start closed')
-if (micHtml.includes('Быстрые настройки голосового ввода" aria-expanded="true"')) throw new Error('quick panel opened by default')
+if (!micHtml.includes('aria-haspopup="menu"')) throw new Error('microphone must expose the popup menu trigger')
+if (!micHtml.includes('aria-expanded="false"')) throw new Error('quick menu must start closed')
+if (micHtml.includes('aria-expanded="true"')) throw new Error('quick menu opened by default')
 
 const settings = registered.find((item) => item.options?.name === 'plugins.bundle.config')
 const settingsHtml = renderToString(
@@ -232,7 +232,8 @@ for (const marker of ['По кнопке', 'В реальном времени',
 }
 if (!panelHtml.includes('★ лучшая для речи')) throw new Error('quick panel must mark the recommended model')
 if (!panelHtml.includes('data-active="true"')) throw new Error('quick panel must show the active mode')
-if (/aria-expanded="true"/.test(micHtml)) throw new Error('microphone must not open the panel by itself')
+if (/aria-expanded="true"/.test(micHtml)) throw new Error('microphone must not open the menu by itself')
+if (micHtml.includes('>Вставить<')) throw new Error('the composer must not ask for a manual insert')
 
 console.log('quick panel smoke passed, bytes:', panelHtml.length)
 console.log('smoke test passed')

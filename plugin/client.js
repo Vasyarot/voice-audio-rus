@@ -1169,7 +1169,7 @@ var DEFAULT_SETTINGS = {
   deviceId: "",
   deviceLabel: "",
   mode: "utterance",
-  live: { chunkSeconds: 6, pauseMs: 700 },
+  live: { chunkSeconds: 1.5, pauseMs: 400 },
   browser: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
   rnnoise: { enabled: true, mix: 1 },
   highpass: { enabled: true, hz: 80 },
@@ -1205,7 +1205,7 @@ function normalizeSettings(raw) {
     deviceLabel: text(value.deviceLabel, base.deviceLabel),
     mode: value.mode === "live" ? "live" : "utterance",
     live: {
-      chunkSeconds: clamp(value.live?.chunkSeconds, 2, 15, base.live.chunkSeconds),
+      chunkSeconds: clamp(value.live?.chunkSeconds, 1, 15, base.live.chunkSeconds),
       pauseMs: clamp(value.live?.pauseMs, 200, 3e3, base.live.pauseMs)
     },
     browser: {
@@ -1309,7 +1309,6 @@ var CSS = `
 .vs-meter>span[data-on="true"]{opacity:1;background:var(--dsw-alias-brand-primary, #2f6bff)}
 .vs-meter>span[data-hot="true"]{background:var(--dsw-alias-state-warning-primary, #e0a100)}
 .vs-status{font-size:12px;color:var(--dsw-alias-label-secondary, #888);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.vs-pending{display:flex;gap:6px;align-items:center;min-width:0}
 .vs-link{border:0;background:none;color:var(--dsw-alias-brand-primary, #2f6bff);cursor:pointer;font:inherit;font-size:12px;padding:0}
 .vs-card{display:flex;flex-direction:column;gap:16px;font-size:14px;line-height:1.5}
 .vs-section{display:flex;flex-direction:column;gap:10px;padding:14px;border:.5px solid var(--dsw-alias-border-l1, #ffffff14);border-radius:10px}
@@ -1362,9 +1361,6 @@ var CSS = `
 .vs-progress-bar>span{display:block;height:100%;background:var(--dsw-alias-brand-primary, #2f6bff);border-radius:3px;transition:width .2s linear}
 .vs-progress-meta{font-size:11px;color:var(--dsw-alias-label-tertiary, #777);font-variant-numeric:tabular-nums}
 .vs-trigger-wrap{position:relative;display:inline-flex;align-items:center;gap:1px}
-.vs-caret{display:inline-flex;align-items:center;justify-content:center;width:15px;height:28px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary, #777);cursor:pointer}
-.vs-caret:hover{background:var(--dsw-alias-interactive-bg-hover, #ffffff14);color:inherit}
-.vs-caret[data-open="true"]{color:var(--dsw-alias-brand-primary, #2f6bff)}
 .vs-quick{position:fixed;right:24px;bottom:80px;z-index:70;display:flex;flex-direction:column;gap:10px;width:min(340px,84vw);max-height:66vh;overflow:auto;padding:12px;border-radius:12px;border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);background:var(--dsw-alias-bg-module-platform, #1b1d22);color:var(--dsw-alias-label-primary, inherit);box-shadow:0 18px 48px #00000066;font-size:13px}
 .vs-quick-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .vs-quick-head strong{font-size:13.5px}
@@ -1439,6 +1435,63 @@ function joinLiveText(previous, piece) {
   if (/^[,.;:!?…»)]/u.test(clean)) return `${previous}${clean}`;
   const next = /[.!?…]$/u.test(previous.trim()) ? clean.charAt(0).toUpperCase() + clean.slice(1) : clean;
   return `${previous} ${next}`;
+}
+
+// plugin/src/client/live.ts
+function createLiveWriter(port, options = {}) {
+  const attempts = options.attempts ?? 80;
+  const schedule = options.schedule ?? ((run, delayMs) => {
+    window.setTimeout(run, delayMs);
+  });
+  let committed = 0;
+  let buffer = "";
+  let flushing = false;
+  let cancelled = false;
+  const flush = () => {
+    if (cancelled || flushing || buffer === "") return;
+    flushing = true;
+    const attempt = (tries) => {
+      if (cancelled || buffer === "") {
+        flushing = false;
+        return;
+      }
+      const text = buffer;
+      let applied = false;
+      try {
+        applied = port.insert(text, port.capture());
+      } catch {
+        applied = false;
+      }
+      if (applied) {
+        committed += text.length;
+        buffer = buffer.slice(text.length);
+        flushing = false;
+        if (buffer !== "") flush();
+        return;
+      }
+      if (tries >= attempts) {
+        flushing = false;
+        return;
+      }
+      schedule(() => attempt(tries + 1), 250);
+    };
+    attempt(0);
+  };
+  return {
+    push(next) {
+      const delta = next.slice(committed + buffer.length);
+      if (delta === "") return;
+      buffer += delta;
+      flush();
+    },
+    committed: () => committed,
+    pending: () => buffer,
+    cancel() {
+      cancelled = true;
+      buffer = "";
+      flushing = false;
+    }
+  };
 }
 
 // plugin/src/client/cloud.ts
@@ -1599,10 +1652,6 @@ function IconGear(props) {
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", { cx: "12", cy: "12", r: "3.2", stroke: "currentColor", strokeWidth: "1.6" }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18", stroke: "currentColor", strokeWidth: "1.6", strokeLinecap: "round" })
   ] });
-}
-function IconChevron(props) {
-  const size = props.size ?? 11;
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "m6 9 6 6 6-6", stroke: "currentColor", strokeWidth: "2.2", strokeLinecap: "round", strokeLinejoin: "round" }) });
 }
 function catalogError(result) {
   const error = result?.error;
@@ -1936,7 +1985,7 @@ function QuickSettings(props) {
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", "data-active": settings.mode !== "live", onClick: () => setMode("utterance"), children: "\u041F\u043E \u043A\u043D\u043E\u043F\u043A\u0435" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", "data-active": settings.mode === "live", onClick: () => setMode("live"), children: "\u0412 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u043C \u0432\u0440\u0435\u043C\u0435\u043D\u0438" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: settings.mode === "live" ? "\u0422\u0435\u043A\u0441\u0442 \u043F\u043E\u044F\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0432 \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A\u0435 \u043F\u043E \u0445\u043E\u0434\u0443 \u0440\u0435\u0447\u0438: \u043F\u043E \u043F\u0430\u0443\u0437\u0430\u043C \u0438 \u043D\u0435 \u0440\u0435\u0436\u0435, \u0447\u0435\u043C \u0440\u0430\u0437 \u0432 \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0441\u0435\u043A\u0443\u043D\u0434." : "\u0417\u0430\u043F\u0438\u0441\u044C \u0446\u0435\u043B\u0438\u043A\u043E\u043C: \u0442\u0435\u043A\u0441\u0442 \u0432\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u043F\u043E\u0441\u043B\u0435 \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438." })
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: settings.mode === "live" ? "\u0422\u0435\u043A\u0441\u0442 \u0434\u043E\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u0432 \u043A\u043E\u043D\u0435\u0446 \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A\u0430 \u0441\u0440\u0430\u0437\u0443 \u043F\u043E\u0441\u043B\u0435 \u043A\u0430\u0436\u0434\u044B\u0445 ~1.5 \u0441 \u0440\u0435\u0447\u0438 \u2014 \u0431\u0435\u0437 \u043A\u043D\u043E\u043F\u043E\u043A \xAB\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C\xBB." : "\u0417\u0430\u043F\u0438\u0441\u044C \u0446\u0435\u043B\u0438\u043A\u043E\u043C: \u0442\u0435\u043A\u0441\u0442 \u0432\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0441\u0430\u043C \u043F\u043E\u0441\u043B\u0435 \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438." })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-block", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-quick-label", children: "\u041C\u043E\u0434\u0435\u043B\u044C \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F" }),
@@ -2032,16 +2081,15 @@ function MicActivity(props) {
   catalogRef.current = catalog;
   const [phase, setPhase] = (0, import_react3.useState)("idle");
   const [message, setMessage] = (0, import_react3.useState)("");
-  const [pending, setPending] = (0, import_react3.useState)("");
   const [seconds, setSeconds] = (0, import_react3.useState)(0);
   const [live, setLive] = (0, import_react3.useState)(false);
   const [liveText, setLiveText] = (0, import_react3.useState)("");
   const [quickOpen, setQuickOpen] = (0, import_react3.useState)(false);
   const [quickAnchor, setQuickAnchor] = (0, import_react3.useState)(void 0);
-  const caretRef = (0, import_react3.useRef)(null);
   const liveRef = (0, import_react3.useRef)(null);
+  const writerRef = (0, import_react3.useRef)(null);
+  const insertTokenRef = (0, import_react3.useRef)(0);
   const recorderRef = (0, import_react3.useRef)(null);
-  const spanRef = (0, import_react3.useRef)(null);
   const selectionRef = (0, import_react3.useRef)(null);
   const abortRef = (0, import_react3.useRef)(null);
   const phaseRef = (0, import_react3.useRef)(phase);
@@ -2069,9 +2117,15 @@ function MicActivity(props) {
     };
   }, [inputActions]);
   const cancel = (0, import_react3.useCallback)(() => {
+    insertTokenRef.current += 1;
+    writerRef.current?.cancel();
+    writerRef.current = null;
     const live2 = liveRef.current;
     liveRef.current = null;
-    if (live2?.timer) window.clearInterval(live2.timer);
+    if (live2) {
+      live2.cancelled = true;
+      if (live2.timer) window.clearInterval(live2.timer);
+    }
     setLive(false);
     setLiveText("");
     abortRef.current?.abort();
@@ -2079,40 +2133,39 @@ function MicActivity(props) {
     const recorder = recorderRef.current;
     recorderRef.current = null;
     if (recorder) void recorder.dispose();
-    spanRef.current = null;
     setPhase("idle");
     setMessage("");
-    setPending("");
     setSeconds(0);
   }, []);
+  const insertTextWithRetry = (0, import_react3.useCallback)(
+    async (text) => {
+      const token = insertTokenRef.current;
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        if (insertTokenRef.current !== token) return false;
+        let applied = false;
+        try {
+          applied = Boolean(inputActions.insertText(text, inputActions.captureInsertion()));
+        } catch {
+          applied = false;
+        }
+        if (applied) return true;
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+      }
+      return false;
+    },
+    [inputActions]
+  );
   const appendLive = (0, import_react3.useCallback)(
     (piece) => {
       const state = liveRef.current;
-      if (!state) return;
+      const writer = writerRef.current;
+      if (!state || !writer) return;
       const next = joinLiveText(state.text, piece);
-      const delta = next.slice(state.inserted);
       state.text = next;
       setLiveText(next);
-      if (delta === "") return;
-      if (state.fallback) {
-        setPending(next);
-        return;
-      }
-      let inserted = false;
-      try {
-        inserted = Boolean(inputActions.insertText(delta, spanRef.current));
-      } catch {
-        inserted = false;
-      }
-      if (inserted) {
-        state.inserted = next.length;
-        setPending("");
-      } else {
-        state.fallback = true;
-        setPending(next);
-      }
+      writer.push(next);
     },
-    [inputActions]
+    []
   );
   const cutLive = (0, import_react3.useCallback)(async () => {
     const state = liveRef.current;
@@ -2200,10 +2253,8 @@ function MicActivity(props) {
       setMessage(`\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043D\u0435 \u0433\u043E\u0442\u043E\u0432: ${phaseText(currentProvider)}. \u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u044C\u0442\u0435 \u043C\u043E\u0434\u0435\u043B\u044C \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445.`);
       return;
     }
-    spanRef.current = inputActions.captureInsertion();
     selectionRef.current = { providerId: currentProvider.id, language: currentCatalog.selection.language };
     const recorder = new VoiceRecorder(settingsRef.current);
-    setPending("");
     setMessage("");
     setLiveText("");
     setSeconds(0);
@@ -2216,13 +2267,16 @@ function MicActivity(props) {
       return;
     }
     recorderRef.current = recorder;
+    writerRef.current = createLiveWriter({
+      capture: () => inputActions.captureInsertion(),
+      insert: (text, span) => inputActions.insertText(text, span)
+    });
     const now = performance.now();
     liveRef.current = {
       timer: window.setInterval(() => tickLiveRef.current(), 250),
       stopped: false,
       text: "",
-      inserted: 0,
-      fallback: false,
+      cancelled: false,
       lastTick: now,
       chunkStartedAt: now,
       silentMs: 0,
@@ -2273,15 +2327,8 @@ function MicActivity(props) {
         },
         settingsRef.current.historyLimit
       );
-      if (state.fallback) {
-        setPending(text);
-        setPhase("feedback");
-        setMessage("\u0427\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u0438\u0437\u043C\u0435\u043D\u0438\u043B\u0441\u044F \u2014 \u0432\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0442\u0435\u043A\u0441\u0442 \u0432\u0440\u0443\u0447\u043D\u0443\u044E.");
-      } else {
-        setPhase("idle");
-        setMessage("");
-        setPending("");
-      }
+      setPhase("idle");
+      setMessage("");
     } catch (failure) {
       liveRef.current = null;
       recorderRef.current = null;
@@ -2290,12 +2337,13 @@ function MicActivity(props) {
       setPhase("feedback");
       setMessage(describeFailure(failure));
     } finally {
-      spanRef.current = null;
       void refresh();
     }
   }, [appendLive, cutLive, refresh]);
   const start = (0, import_react3.useCallback)(async () => {
     if (phaseRef.current !== "idle" || locked) return;
+    writerRef.current?.cancel();
+    writerRef.current = null;
     const currentCatalog = catalogRef.current;
     const currentProvider = currentCatalog?.providers.find((item) => item.id === currentCatalog.selection.providerId);
     if (!currentCatalog || !currentProvider) {
@@ -2313,10 +2361,8 @@ function MicActivity(props) {
       return;
     }
     if (locked) return;
-    spanRef.current = inputActions.captureInsertion();
     selectionRef.current = { providerId: currentProvider.id, language: currentCatalog.selection.language };
     const recorder = new VoiceRecorder(settingsRef.current);
-    setPending("");
     setMessage("");
     setPhase("requesting");
     try {
@@ -2381,21 +2427,9 @@ function MicActivity(props) {
         },
         settingsRef.current.historyLimit
       );
-      let inserted = false;
-      try {
-        inserted = Boolean(inputActions.insertText(text, spanRef.current));
-      } catch {
-        inserted = false;
-      }
-      if (inserted) {
-        setPhase("idle");
-        setMessage("");
-        setPending("");
-      } else {
-        setPending(text);
-        setPhase("feedback");
-        setMessage("\u0427\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u0438\u0437\u043C\u0435\u043D\u0438\u043B\u0441\u044F \u2014 \u0432\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0442\u0435\u043A\u0441\u0442 \u0432\u0440\u0443\u0447\u043D\u0443\u044E.");
-      }
+      const applied = await insertTextWithRetry(text);
+      setPhase(applied ? "idle" : "feedback");
+      setMessage(applied ? "" : "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0432\u0441\u0442\u0430\u0432\u0438\u0442\u044C \u0442\u0435\u043A\u0441\u0442 \u0432 \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u2014 \u043E\u043D \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0432 \u0438\u0441\u0442\u043E\u0440\u0438\u0438.");
     } catch (failure) {
       if (!runRef.cancelled) {
         setPhase("feedback");
@@ -2404,10 +2438,9 @@ function MicActivity(props) {
     } finally {
       recorderRef.current = null;
       abortRef.current = null;
-      spanRef.current = null;
       void refresh();
     }
-  }, [ctx, finishLive, inputActions, refresh]);
+  }, [ctx, finishLive, insertTextWithRetry, refresh]);
   finishRef.current = () => {
     void finish();
   };
@@ -2516,35 +2549,18 @@ function MicActivity(props) {
     return () => onActiveChange?.(false);
   }, [expanded, onActiveChange]);
   (0, import_react3.useEffect)(() => {
-    setPending("");
     setMessage("");
     if (phaseRef.current !== "recording") setPhase("idle");
   }, [sessionId]);
-  const insertPending = () => {
-    if (pending === "") return;
-    try {
-      if (inputActions.insertText(pending, inputActions.captureInsertion())) {
-        setPending("");
-        setPhase("idle");
-        setMessage("");
-      }
-    } catch {
-    }
-  };
-  const copyPending = () => {
-    if (pending !== "") void navigator.clipboard?.writeText(pending).catch(() => {
-    });
-  };
-  const toggleQuick = () => {
+  const toggleQuick = (event) => {
     if (quickOpen) {
       setQuickOpen(false);
       return;
     }
-    const rect = caretRef.current?.getBoundingClientRect();
-    if (rect) {
+    if (event) {
       setQuickAnchor({
-        bottom: Math.max(8, window.innerHeight - rect.top + 8),
-        right: Math.max(8, window.innerWidth - rect.right)
+        right: Math.max(8, window.innerWidth - event.clientX),
+        bottom: Math.max(8, window.innerHeight - event.clientY)
       });
     }
     setQuickOpen(true);
@@ -2556,8 +2572,10 @@ function MicActivity(props) {
         {
           type: "button",
           className: "vs-trigger",
-          title: usable ? "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434" : "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434: \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435",
+          title: usable ? "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434 \xB7 \u043F\u0440\u0430\u0432\u044B\u0439 \u043A\u043B\u0438\u043A \u2014 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438" : "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434: \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435",
           "aria-label": "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434",
+          "aria-haspopup": "menu",
+          "aria-expanded": quickOpen,
           disabled: Boolean(locked),
           onMouseDown: (event) => event.preventDefault(),
           onClick: () => {
@@ -2569,24 +2587,9 @@ function MicActivity(props) {
           },
           onContextMenu: (event) => {
             event.preventDefault();
-            toggleQuick();
+            toggleQuick({ clientX: event.clientX, clientY: event.clientY });
           },
           children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconMic, {})
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "button",
-        {
-          type: "button",
-          className: "vs-caret",
-          ref: caretRef,
-          "data-open": quickOpen,
-          "aria-label": "\u0411\u044B\u0441\u0442\u0440\u044B\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0433\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0433\u043E \u0432\u0432\u043E\u0434\u0430",
-          "aria-expanded": quickOpen,
-          title: "\u0420\u0435\u0436\u0438\u043C \u0438 \u043C\u043E\u0434\u0435\u043B\u044C \u2014 \u043D\u0435 \u043E\u0442\u043A\u0440\u044B\u0432\u0430\u044F \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
-          onMouseDown: (event) => event.preventDefault(),
-          onClick: toggleQuick,
-          children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconChevron, {})
         }
       ),
       quickOpen ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -2609,7 +2612,7 @@ function MicActivity(props) {
       {
         type: "button",
         className: "vs-round",
-        "aria-label": pending ? "\u041E\u0442\u043C\u0435\u043D\u0438\u0442\u044C" : "\u041E\u0442\u043C\u0435\u043D\u0430",
+        "aria-label": "\u041E\u0442\u043C\u0435\u043D\u0430",
         onClick: cancel,
         children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconClose, {})
       }
@@ -2641,11 +2644,7 @@ function MicActivity(props) {
         }
       )
     ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-status", role: "status", children: phase === "requesting" ? "\u0414\u043E\u0441\u0442\u0443\u043F \u043A \u043C\u0438\u043A\u0440\u043E\u0444\u043E\u043D\u0443\u2026" : phase === "transcribing" ? "\u0420\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435\u2026" : pending !== "" ? "\u0422\u0435\u043A\u0441\u0442 \u0433\u043E\u0442\u043E\u0432 \u2014 \u0432\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0432\u0440\u0443\u0447\u043D\u0443\u044E" : message || "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434" }),
-      phase === "feedback" && pending !== "" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-pending", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-link", onClick: insertPending, children: "\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-link", onClick: copyPending, children: "\u041A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C" })
-      ] }) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-status", role: "status", children: phase === "requesting" ? "\u0414\u043E\u0441\u0442\u0443\u043F \u043A \u043C\u0438\u043A\u0440\u043E\u0444\u043E\u043D\u0443\u2026" : phase === "transcribing" ? "\u0420\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435\u2026" : message || "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434" }),
       phase === "feedback" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         "button",
         {
@@ -2654,7 +2653,6 @@ function MicActivity(props) {
           "aria-label": "\u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C \u0437\u0430\u043F\u0438\u0441\u044C",
           onClick: () => {
             setMessage("");
-            setPending("");
             setPhase("idle");
             void start();
           },
@@ -2694,6 +2692,7 @@ function Row(props) {
   ] });
 }
 function Slider(props) {
+  const fractional = props.step !== void 0 && props.step < 1;
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       "input",
@@ -2708,7 +2707,7 @@ function Slider(props) {
       }
     ),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-value", children: [
-      Math.round(props.value),
+      fractional ? props.value.toFixed(1) : Math.round(props.value),
       props.unit ?? ""
     ] })
   ] });
@@ -3205,7 +3204,7 @@ function SettingsPage(props) {
         Row,
         {
           label: "\u041A\u0430\u043A \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u0442\u044C",
-          hint: "\xAB\u0412 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u043C \u0432\u0440\u0435\u043C\u0435\u043D\u0438\xBB \u0432\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442 \u0442\u0435\u043A\u0441\u0442 \u0432 \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u043F\u043E \u0445\u043E\u0434\u0443 \u0440\u0435\u0447\u0438: \u043F\u043E \u043F\u0430\u0443\u0437\u0430\u043C \u0438 \u043D\u0435 \u0440\u0435\u0436\u0435, \u0447\u0435\u043C \u0440\u0430\u0437 \u0432 \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0441\u0435\u043A\u0443\u043D\u0434.",
+          hint: "\xAB\u0412 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u043C \u0432\u0440\u0435\u043C\u0435\u043D\u0438\xBB \u0432\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442 \u0442\u0435\u043A\u0441\u0442 \u0432 \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u0441\u0440\u0430\u0437\u0443 \u043F\u043E\u0441\u043B\u0435 \u043A\u0430\u0436\u0434\u044B\u0445 ~1.5 \u0441 \u0440\u0435\u0447\u0438 (\u0438 \u0440\u0430\u043D\u044C\u0448\u0435, \u0435\u0441\u043B\u0438 \u0432\u044B \u0437\u0430\u043C\u043E\u043B\u0447\u0430\u043B\u0438).",
           children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-seg", children: [
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
               "button",
@@ -3229,17 +3228,18 @@ function SettingsPage(props) {
         }
       ),
       settings.mode === "live" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041C\u0430\u043A\u0441\u0438\u043C\u0443\u043C \u0444\u0440\u0430\u0437\u044B", hint: "\u0415\u0441\u043B\u0438 \u043F\u0430\u0443\u0437\u044B \u043D\u0435\u0442, \u0440\u0435\u0447\u044C \u0440\u0435\u0436\u0435\u0442\u0441\u044F \u043D\u0430 \u043A\u0443\u0441\u043A\u0438 \u043D\u0435 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 \u044D\u0442\u043E\u0433\u043E \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041C\u0430\u043A\u0441\u0438\u043C\u0443\u043C \u0444\u0440\u0430\u0437\u044B", hint: "\u041A\u0443\u0441\u043E\u043A \u0440\u0435\u0447\u0438 \u043D\u0435 \u0434\u043B\u0438\u043D\u043D\u0435\u0435 \u044D\u0442\u043E\u0433\u043E \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F; 1.5 \u0441 \u2014 \u0441\u0430\u043C\u044B\u0439 \u0431\u044B\u0441\u0442\u0440\u044B\u0439 \u043E\u0442\u043A\u043B\u0438\u043A, 4\u20136 \u0441 \u2014 \u0442\u043E\u0447\u043D\u0435\u0435.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
           Slider,
           {
             value: settings.live.chunkSeconds,
-            min: 2,
+            min: 1,
             max: 15,
+            step: 0.5,
             unit: " \u0441",
             onChange: (value) => update((current2) => ({ ...current2, live: { ...current2.live, chunkSeconds: value } }))
           }
         ) }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041F\u0430\u0443\u0437\u0430 \u0434\u043B\u044F \u0432\u0441\u0442\u0430\u0432\u043A\u0438", hint: "\u0422\u0430\u043A\u0430\u044F \u043F\u0430\u0443\u0437\u0430 \u0441\u0447\u0438\u0442\u0430\u0435\u0442\u0441\u044F \u043A\u043E\u043D\u0446\u043E\u043C \u0444\u0440\u0430\u0437\u044B: \u043A\u0443\u0441\u043E\u043A \u0441\u0440\u0430\u0437\u0443 \u0443\u0445\u043E\u0434\u0438\u0442 \u043D\u0430 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: "\u041F\u0430\u0443\u0437\u0430 \u0434\u043B\u044F \u0432\u0441\u0442\u0430\u0432\u043A\u0438", hint: "\u0422\u0430\u043A\u0430\u044F \u043F\u0430\u0443\u0437\u0430 \u0442\u043E\u0436\u0435 \u0437\u0430\u0432\u0435\u0440\u0448\u0430\u0435\u0442 \u043A\u0443\u0441\u043E\u043A \u2014 \u0442\u0435\u043A\u0441\u0442 \u043F\u043E\u044F\u0432\u0438\u0442\u0441\u044F, \u043D\u0435 \u0434\u043E\u0436\u0438\u0434\u0430\u044F\u0441\u044C \u043B\u0438\u043C\u0438\u0442\u0430.", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
           Slider,
           {
             value: settings.live.pauseMs,
@@ -3250,7 +3250,7 @@ function SettingsPage(props) {
             onChange: (value) => update((current2) => ({ ...current2, live: { ...current2.live, pauseMs: value } }))
           }
         ) }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u0420\u0435\u0436\u0438\u043C \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u0441 \u043B\u044E\u0431\u044B\u043C \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u043E\u043C: \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0439 Whisper \u0438 \u043E\u0431\u043B\u0430\u043A\u043E \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u044E\u0442 \u043A\u043E\u0440\u043E\u0442\u043A\u0438\u0435 \u043A\u0443\u0441\u043A\u0438. \u0410\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E \u0442\u0438\u0448\u0438\u043D\u0435 \u0437\u0434\u0435\u0441\u044C \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D \u2014 \u0437\u0430\u043F\u0438\u0441\u044C \u043E\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u043A\u043D\u043E\u043F\u043A\u043E\u0439, Esc \u0438\u043B\u0438 \u0441\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u0435\u043C Push-to-talk." })
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u0420\u0435\u0436\u0438\u043C \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u0441 \u043B\u044E\u0431\u044B\u043C \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u043E\u043C: \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0439 Whisper \u0438 \u043E\u0431\u043B\u0430\u043A\u043E \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u044E\u0442 \u043A\u043E\u0440\u043E\u0442\u043A\u0438\u0435 \u043A\u0443\u0441\u043A\u0438. \u0410\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E \u0442\u0438\u0448\u0438\u043D\u0435 \u0437\u0434\u0435\u0441\u044C \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D \u2014 \u0437\u0430\u043F\u0438\u0441\u044C \u043E\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u043A\u043D\u043E\u043F\u043A\u043E\u0439, Esc \u0438\u043B\u0438 \u0441\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u0435\u043C Push-to-talk. \u0422\u0435\u043A\u0441\u0442 \u0432\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0441\u0430\u043C, \u043A\u043D\u043E\u043F\u043A\u0438 \xAB\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C\xBB \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435\u0442." })
       ] }) : null
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", open: true, children: [

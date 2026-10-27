@@ -16,6 +16,7 @@ export { postProcess, joinLiveText } from '../plugin/src/client/text'
 export { encodeWav, downsample, processSamples, wavFromSamples } from '../plugin/src/client/audio'
 export { DEFAULT_SETTINGS, getSettings, resetSettings, setSettings } from '../plugin/src/client/settings'
 export { isSpeechModel, recommendModel, scoreModel, normalizeBaseURL } from '../plugin/src/client/cloud'
+export { createLiveWriter } from '../plugin/src/client/live'
 `,
 )
 
@@ -40,7 +41,7 @@ await build({
   logLevel: 'warning',
 })
 
-const { postProcess, encodeWav, downsample, processSamples, DEFAULT_SETTINGS, resetSettings, setSettings, getSettings, joinLiveText, wavFromSamples, isSpeechModel, recommendModel, scoreModel, normalizeBaseURL } = await import(
+const { postProcess, encodeWav, downsample, processSamples, DEFAULT_SETTINGS, resetSettings, setSettings, getSettings, joinLiveText, wavFromSamples, isSpeechModel, recommendModel, scoreModel, normalizeBaseURL, createLiveWriter } = await import(
   new URL('../.tmp/unit.mjs', import.meta.url).href
 )
 
@@ -102,13 +103,16 @@ console.log('unit tests passed')
 // ---- dictation mode, live fragments and cloud model ranking
 
 assert.equal(DEFAULT_SETTINGS.mode, 'utterance')
-assert.deepEqual(DEFAULT_SETTINGS.live, { chunkSeconds: 6, pauseMs: 700 })
+assert.deepEqual(DEFAULT_SETTINGS.live, { chunkSeconds: 1.5, pauseMs: 400 })
 
 setSettings({ ...DEFAULT_SETTINGS, mode: 'live', live: { chunkSeconds: 99, pauseMs: 10 } })
 const liveSettings = getSettings()
 assert.equal(liveSettings.mode, 'live', 'live mode must persist')
 assert.equal(liveSettings.live.chunkSeconds, 15, 'chunk seconds are clamped')
 assert.equal(liveSettings.live.pauseMs, 200, 'pause is clamped')
+setSettings({ ...DEFAULT_SETTINGS, live: { chunkSeconds: 0.2, pauseMs: 9000 } })
+assert.equal(getSettings().live.chunkSeconds, 1, 'chunk seconds have a one-second floor')
+assert.equal(getSettings().live.pauseMs, 3000, 'pause has a ceiling')
 setSettings({ ...DEFAULT_SETTINGS, mode: 'weird' })
 assert.equal(getSettings().mode, 'utterance', 'unknown mode falls back to the button mode')
 setSettings({ ...DEFAULT_SETTINGS, mode: 'live' })
@@ -144,3 +148,54 @@ assert.equal(recommendModel(['tts-1', 'dall-e-3']), null)
 assert.equal(recommendModel([]), null)
 
 console.log('live mode and model ranking tests passed')
+
+// ---- live writer against DSH composer semantics
+// Every edit bumps the draft revision and the caret lands after the insertion,
+// which is exactly why a span captured once rejects the next fragment.
+
+function fakeComposer() {
+  const editor = { rev: 0, text: '', caret: 0 }
+  const port = {
+    capture: () => ({ draftRev: editor.rev, at: editor.caret }),
+    insert: (text, span) => {
+      if (span.draftRev !== editor.rev) return false
+      editor.text = editor.text.slice(0, span.at) + text + editor.text.slice(span.at)
+      editor.caret = span.at + text.length
+      editor.rev += 1
+      return true
+    },
+  }
+  return { editor, port }
+}
+
+const first = fakeComposer()
+const firstWriter = createLiveWriter(first.port, { schedule: (run) => run() })
+firstWriter.push('Привет')
+firstWriter.push('Привет мир')
+firstWriter.push('Привет мир.')
+assert.equal(first.editor.text, 'Привет мир.', 'every fragment must land in order')
+assert.equal(first.editor.caret, 'Привет мир.'.length, 'the caret follows the inserted text')
+assert.equal(firstWriter.committed(), 'Привет мир.'.length)
+assert.equal(firstWriter.pending(), '')
+// An unchanged session text must not be inserted twice.
+firstWriter.push('Привет мир.')
+assert.equal(first.editor.text, 'Привет мир.')
+
+const retrying = fakeComposer()
+let refusals = 3
+const retryPort = {
+  capture: retrying.port.capture,
+  insert: (text, span) => (refusals-- > 0 ? false : retrying.port.insert(text, span)),
+}
+const retryWriter = createLiveWriter(retryPort, { schedule: (run) => run() })
+retryWriter.push('Раз')
+assert.equal(retrying.editor.text, 'Раз', 'refused insertions are retried')
+assert.equal(retryWriter.pending(), '')
+
+const cancelledComposer = fakeComposer()
+const cancelledWriter = createLiveWriter(cancelledComposer.port, { schedule: (run) => run() })
+cancelledWriter.cancel()
+cancelledWriter.push('Не должно появиться')
+assert.equal(cancelledComposer.editor.text, '', 'a cancelled writer never touches the draft')
+
+console.log('live writer tests passed')

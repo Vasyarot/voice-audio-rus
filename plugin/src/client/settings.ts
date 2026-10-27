@@ -29,7 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   deviceId: '',
   deviceLabel: '',
   mode: 'utterance',
-  live: { chunkSeconds: 6, pauseMs: 700 },
+  live: { chunkSeconds: 1.5, pauseMs: 400 },
   browser: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
   rnnoise: { enabled: true, mix: 1 },
   highpass: { enabled: true, hz: 80 },
@@ -75,7 +75,7 @@ export function normalizeSettings(raw: unknown): Settings {
     deviceLabel: text(value.deviceLabel, base.deviceLabel),
     mode: value.mode === 'live' ? 'live' : 'utterance',
     live: {
-      chunkSeconds: clamp(value.live?.chunkSeconds, 2, 15, base.live.chunkSeconds),
+      chunkSeconds: clamp(value.live?.chunkSeconds, 1, 15, base.live.chunkSeconds),
       pauseMs: clamp(value.live?.pauseMs, 200, 3000, base.live.pauseMs),
     },
     browser: {

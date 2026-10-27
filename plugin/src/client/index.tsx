@@ -10,6 +10,7 @@ import { normalizeSettings, resetSettings, updateSettings, useSettings } from '.
 import type { Settings } from './settings'
 import { CSS } from './styles'
 import { joinLiveText, postProcess } from './text'
+import { createLiveWriter } from './live'
 import {
   CLOUD_DEFAULT,
   fetchModels,
@@ -64,15 +65,6 @@ function IconGear(props: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="12" r="3.2" stroke="currentColor" strokeWidth="1.6" />
       <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function IconChevron(props: { size?: number }) {
-  const size = props.size ?? 11
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -516,8 +508,8 @@ export function QuickSettings(props: QuickProps) {
         </div>
         <p className="vs-hint">
           {settings.mode === 'live'
-            ? 'Текст появляется в черновике по ходу речи: по паузам и не реже, чем раз в несколько секунд.'
-            : 'Запись целиком: текст вставляется после остановки.'}
+            ? 'Текст дописывается в конец черновика сразу после каждых ~1.5 с речи — без кнопок «Вставить».'
+            : 'Запись целиком: текст вставляется сам после остановки.'}
         </p>
       </div>
       <div className="vs-quick-block">
@@ -637,9 +629,8 @@ let activeDraft: { insertText: (text: string) => boolean } | null = null
 type LiveSession = {
   timer: number
   stopped: boolean
+  cancelled: boolean
   text: string
-  inserted: number
-  fallback: boolean
   lastTick: number
   chunkStartedAt: number
   silentMs: number
@@ -660,16 +651,16 @@ function MicActivity(props: ActivityProps) {
 
   const [phase, setPhase] = useState<'idle' | 'requesting' | 'recording' | 'transcribing' | 'feedback'>('idle')
   const [message, setMessage] = useState('')
-  const [pending, setPending] = useState('')
   const [seconds, setSeconds] = useState(0)
   const [live, setLive] = useState(false)
   const [liveText, setLiveText] = useState('')
   const [quickOpen, setQuickOpen] = useState(false)
   const [quickAnchor, setQuickAnchor] = useState<React.CSSProperties | undefined>(undefined)
-  const caretRef = useRef<HTMLButtonElement | null>(null)
   const liveRef = useRef<LiveSession | null>(null)
+  const writerRef = useRef<ReturnType<typeof createLiveWriter> | null>(null)
+  /** Bumped by cancel/unmount so pending insert retries stop touching the draft. */
+  const insertTokenRef = useRef(0)
   const recorderRef = useRef<VoiceRecorder | null>(null)
-  const spanRef = useRef<any>(null)
   const selectionRef = useRef<{ providerId: string; language: string } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const phaseRef = useRef(phase)
@@ -698,9 +689,15 @@ function MicActivity(props: ActivityProps) {
   }, [inputActions])
 
   const cancel = useCallback(() => {
+    insertTokenRef.current += 1
+    writerRef.current?.cancel()
+    writerRef.current = null
     const live = liveRef.current
     liveRef.current = null
-    if (live?.timer) window.clearInterval(live.timer)
+    if (live) {
+      live.cancelled = true
+      if (live.timer) window.clearInterval(live.timer)
+    }
     setLive(false)
     setLiveText('')
     abortRef.current?.abort()
@@ -708,45 +705,50 @@ function MicActivity(props: ActivityProps) {
     const recorder = recorderRef.current
     recorderRef.current = null
     if (recorder) void recorder.dispose()
-    spanRef.current = null
     setPhase('idle')
     setMessage('')
-    setPending('')
     setSeconds(0)
   }, [])
 
   // ---- live mode: cut fragments while the microphone is open -----------------
 
+  /**
+   * Write recognised text into the draft. The insertion span is captured right
+   * before every attempt: DSH bumps the draft revision on each edit, so a span
+   * captured once rejects the second fragment and the text would have to be
+   * pasted by hand. Failed attempts are retried, the user never presses "insert".
+   */
+  const insertTextWithRetry = useCallback(
+    async (text: string): Promise<boolean> => {
+      const token = insertTokenRef.current
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        if (insertTokenRef.current !== token) return false
+        let applied = false
+        try {
+          applied = Boolean(inputActions.insertText(text, inputActions.captureInsertion()))
+        } catch {
+          applied = false
+        }
+        if (applied) return true
+        await new Promise((resolve) => window.setTimeout(resolve, 250))
+      }
+      return false
+    },
+    [inputActions],
+  )
+
   /** Append one recognised fragment to the draft, inserting only the new characters. */
   const appendLive = useCallback(
     (piece: string) => {
       const state = liveRef.current
-      if (!state) return
+      const writer = writerRef.current
+      if (!state || !writer) return
       const next = joinLiveText(state.text, piece)
-      const delta = next.slice(state.inserted)
       state.text = next
       setLiveText(next)
-      if (delta === '') return
-      if (state.fallback) {
-        setPending(next)
-        return
-      }
-      let inserted = false
-      try {
-        inserted = Boolean(inputActions.insertText(delta, spanRef.current))
-      } catch {
-        inserted = false
-      }
-      if (inserted) {
-        state.inserted = next.length
-        setPending('')
-      } else {
-        // The draft moved under us: keep the whole session text for a manual insert.
-        state.fallback = true
-        setPending(next)
-      }
+      writer.push(next)
     },
-    [inputActions],
+    [],
   )
 
   /** Transcribe everything captured since the previous cut. */
@@ -842,10 +844,8 @@ function MicActivity(props: ActivityProps) {
       setMessage(`Провайдер не готов: ${phaseText(currentProvider)}. Подготовьте модель в настройках.`)
       return
     }
-    spanRef.current = inputActions.captureInsertion()
     selectionRef.current = { providerId: currentProvider.id, language: currentCatalog.selection.language }
     const recorder = new VoiceRecorder(settingsRef.current)
-    setPending('')
     setMessage('')
     setLiveText('')
     setSeconds(0)
@@ -858,13 +858,16 @@ function MicActivity(props: ActivityProps) {
       return
     }
     recorderRef.current = recorder
+    writerRef.current = createLiveWriter({
+      capture: () => inputActions.captureInsertion(),
+      insert: (text: string, span: any) => inputActions.insertText(text, span),
+    })
     const now = performance.now()
     liveRef.current = {
       timer: window.setInterval(() => tickLiveRef.current(), 250),
       stopped: false,
       text: '',
-      inserted: 0,
-      fallback: false,
+      cancelled: false,
       lastTick: now,
       chunkStartedAt: now,
       silentMs: 0,
@@ -916,15 +919,8 @@ function MicActivity(props: ActivityProps) {
         },
         settingsRef.current.historyLimit,
       )
-      if (state.fallback) {
-        setPending(text)
-        setPhase('feedback')
-        setMessage('Черновик изменился — вставьте текст вручную.')
-      } else {
-        setPhase('idle')
-        setMessage('')
-        setPending('')
-      }
+      setPhase('idle')
+      setMessage('')
     } catch (failure) {
       liveRef.current = null
       recorderRef.current = null
@@ -933,13 +929,15 @@ function MicActivity(props: ActivityProps) {
       setPhase('feedback')
       setMessage(describeFailure(failure))
     } finally {
-      spanRef.current = null
       void refresh()
     }
   }, [appendLive, cutLive, refresh])
 
   const start = useCallback(async () => {
     if (phaseRef.current !== 'idle' || locked) return
+    // A previous session's writer must not append its leftovers into the new one.
+    writerRef.current?.cancel()
+    writerRef.current = null
     const currentCatalog = catalogRef.current
     const currentProvider = currentCatalog?.providers.find((item) => item.id === currentCatalog.selection.providerId)
     if (!currentCatalog || !currentProvider) {
@@ -957,10 +955,8 @@ function MicActivity(props: ActivityProps) {
       return
     }
     if (locked) return
-    spanRef.current = inputActions.captureInsertion()
     selectionRef.current = { providerId: currentProvider.id, language: currentCatalog.selection.language }
     const recorder = new VoiceRecorder(settingsRef.current)
-    setPending('')
     setMessage('')
     setPhase('requesting')
     try {
@@ -1026,21 +1022,9 @@ function MicActivity(props: ActivityProps) {
         },
         settingsRef.current.historyLimit,
       )
-      let inserted = false
-      try {
-        inserted = Boolean(inputActions.insertText(text, spanRef.current))
-      } catch {
-        inserted = false
-      }
-      if (inserted) {
-        setPhase('idle')
-        setMessage('')
-        setPending('')
-      } else {
-        setPending(text)
-        setPhase('feedback')
-        setMessage('Черновик изменился — вставьте текст вручную.')
-      }
+      const applied = await insertTextWithRetry(text)
+      setPhase(applied ? 'idle' : 'feedback')
+      setMessage(applied ? '' : 'Не удалось вставить текст в черновик — он сохранён в истории.')
     } catch (failure) {
       if (!runRef.cancelled) {
         setPhase('feedback')
@@ -1049,10 +1033,9 @@ function MicActivity(props: ActivityProps) {
     } finally {
       recorderRef.current = null
       abortRef.current = null
-      spanRef.current = null
       void refresh()
     }
-  }, [ctx, finishLive, inputActions, refresh])
+  }, [ctx, finishLive, insertTextWithRetry, refresh])
 
   finishRef.current = () => {
     void finish()
@@ -1174,38 +1157,20 @@ function MicActivity(props: ActivityProps) {
 
   useEffect(() => {
     // A new session owns a fresh draft: drop a transcript that belonged to the old one.
-    setPending('')
     setMessage('')
     if (phaseRef.current !== 'recording') setPhase('idle')
   }, [sessionId])
 
-  const insertPending = () => {
-    if (pending === '') return
-    try {
-      if (inputActions.insertText(pending, inputActions.captureInsertion())) {
-        setPending('')
-        setPhase('idle')
-        setMessage('')
-      }
-    } catch {
-      /* keep the pending text visible */
-    }
-  }
-
-  const copyPending = () => {
-    if (pending !== '') void navigator.clipboard?.writeText(pending).catch(() => {})
-  }
-
-  const toggleQuick = () => {
+  const toggleQuick = (event?: { clientX: number; clientY: number }) => {
     if (quickOpen) {
       setQuickOpen(false)
       return
     }
-    const rect = caretRef.current?.getBoundingClientRect()
-    if (rect) {
+    if (event) {
+      // Menu semantics: the panel grows up-left from the click, never off screen.
       setQuickAnchor({
-        bottom: Math.max(8, window.innerHeight - rect.top + 8),
-        right: Math.max(8, window.innerWidth - rect.right),
+        right: Math.max(8, window.innerWidth - event.clientX),
+        bottom: Math.max(8, window.innerHeight - event.clientY),
       })
     }
     setQuickOpen(true)
@@ -1217,8 +1182,10 @@ function MicActivity(props: ActivityProps) {
         <button
           type="button"
           className="vs-trigger"
-          title={usable ? 'Голосовой ввод' : 'Голосовой ввод: настройте распознавание'}
+          title={usable ? 'Голосовой ввод · правый клик — настройки' : 'Голосовой ввод: настройте распознавание'}
           aria-label="Голосовой ввод"
+          aria-haspopup="menu"
+          aria-expanded={quickOpen}
           disabled={Boolean(locked)}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => {
@@ -1230,23 +1197,10 @@ function MicActivity(props: ActivityProps) {
           }}
           onContextMenu={(event) => {
             event.preventDefault()
-            toggleQuick()
+            toggleQuick({ clientX: event.clientX, clientY: event.clientY })
           }}
         >
           <IconMic />
-        </button>
-        <button
-          type="button"
-          className="vs-caret"
-          ref={caretRef}
-          data-open={quickOpen}
-          aria-label="Быстрые настройки голосового ввода"
-          aria-expanded={quickOpen}
-          title="Режим и модель — не открывая настройки"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={toggleQuick}
-        >
-          <IconChevron />
         </button>
         {quickOpen ? (
           <QuickSettings
@@ -1268,7 +1222,7 @@ function MicActivity(props: ActivityProps) {
       <button
         type="button"
         className="vs-round"
-        aria-label={pending ? 'Отменить' : 'Отмена'}
+        aria-label="Отмена"
         onClick={cancel}
       >
         <IconClose />
@@ -1309,20 +1263,8 @@ function MicActivity(props: ActivityProps) {
               ? 'Доступ к микрофону…'
               : phase === 'transcribing'
                 ? 'Распознавание…'
-                : pending !== ''
-                  ? 'Текст готов — вставьте вручную'
-                  : message || 'Голосовой ввод'}
+                : message || 'Голосовой ввод'}
           </span>
-          {phase === 'feedback' && pending !== '' ? (
-            <span className="vs-pending">
-              <button type="button" className="vs-link" onClick={insertPending}>
-                Вставить
-              </button>
-              <button type="button" className="vs-link" onClick={copyPending}>
-                Копировать
-              </button>
-            </span>
-          ) : null}
           {phase === 'feedback' ? (
             <button
               type="button"
@@ -1330,7 +1272,6 @@ function MicActivity(props: ActivityProps) {
               aria-label="Повторить запись"
               onClick={() => {
                 setMessage('')
-                setPending('')
                 setPhase('idle')
                 void start()
               }}
@@ -1387,6 +1328,7 @@ function Slider(props: {
   unit?: string
   onChange: (value: number) => void
 }) {
+  const fractional = props.step !== undefined && props.step < 1
   return (
     <>
       <input
@@ -1399,7 +1341,7 @@ function Slider(props: {
         onChange={(event) => props.onChange(Number(event.target.value))}
       />
       <span className="vs-value">
-        {Math.round(props.value)}
+        {fractional ? props.value.toFixed(1) : Math.round(props.value)}
         {props.unit ?? ''}
       </span>
     </>
@@ -1979,7 +1921,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         <summary><h4>Режим диктовки</h4></summary>
         <Row
           label="Как распознавать"
-          hint="«В реальном времени» вставляет текст в черновик по ходу речи: по паузам и не реже, чем раз в несколько секунд."
+          hint="«В реальном времени» вставляет текст в черновик сразу после каждых ~1.5 с речи (и раньше, если вы замолчали)."
         >
           <div className="vs-seg">
             <button
@@ -2000,16 +1942,17 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         </Row>
         {settings.mode === 'live' ? (
           <>
-            <Row label="Максимум фразы" hint="Если паузы нет, речь режется на куски не длиннее этого значения.">
+            <Row label="Максимум фразы" hint="Кусок речи не длиннее этого значения; 1.5 с — самый быстрый отклик, 4–6 с — точнее.">
               <Slider
                 value={settings.live.chunkSeconds}
-                min={2}
+                min={1}
                 max={15}
+                step={0.5}
                 unit=" с"
                 onChange={(value) => update((current) => ({ ...current, live: { ...current.live, chunkSeconds: value } }))}
               />
             </Row>
-            <Row label="Пауза для вставки" hint="Такая пауза считается концом фразы: кусок сразу уходит на распознавание.">
+            <Row label="Пауза для вставки" hint="Такая пауза тоже завершает кусок — текст появится, не дожидаясь лимита.">
               <Slider
                 value={settings.live.pauseMs}
                 min={200}
@@ -2021,7 +1964,8 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             </Row>
             <p className="vs-hint">
               Режим работает с любым провайдером: локальный Whisper и облако распознают короткие куски. Авто-стоп по
-              тишине здесь выключен — запись останавливается кнопкой, Esc или сочетанием Push-to-talk.
+              тишине здесь выключен — запись останавливается кнопкой, Esc или сочетанием Push-to-talk. Текст вставляется
+              сам, кнопки «Вставить» больше нет.
             </p>
           </>
         ) : null}
