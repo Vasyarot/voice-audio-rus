@@ -57,21 +57,32 @@
 
 ## Быстрый старт
 
-Одна команда из корня репозитория. Скрипт сам найдёт `dsh`, угадает профиль
-(настольное приложение → `desktop`, иначе `web`), поставит пакет ссылкой на эту папку
-и добавит бандл в `dsh.profile.bundles`.
+Клонировать репозиторий не нужно: скрипт сам скачает свежие исходники с GitHub,
+найдёт `dsh`, угадает профиль (настольное приложение → `desktop`, иначе `web`),
+поставит плагин и добавит бандл в `dsh.profile.bundles`.
 
 **Windows (PowerShell):**
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
-# в PowerShell 7 то же самое: pwsh -File .\install.ps1
+irm https://raw.githubusercontent.com/Vasyarot/voice-audio-rus/main/install.ps1 -OutFile "$env:TEMP\voice-audio-rus.ps1"
+powershell -ExecutionPolicy Bypass -File "$env:TEMP\voice-audio-rus.ps1"
 ```
 
 **macOS / Linux:**
 
 ```bash
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/Vasyarot/voice-audio-rus/main/install.sh | bash
+```
+
+Повторный запуск — это обновление: архив перекачивается, пакет в профиле
+переустанавливается на новую версию.
+
+Если хотите править код — клонируйте и запустите скрипт из репозитория,
+он возьмёт локальную папку `plugin/` вместо загрузки:
+
+```bash
+git clone https://github.com/Vasyarot/voice-audio-rus && cd voice-audio-rus
+./install.sh            # .\install.ps1 в Windows
 ```
 
 | PowerShell | shell | Что делает |
@@ -81,6 +92,14 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 | `-Uninstall` | `--uninstall` | убрать плагин из профиля |
 | `-Dsh <path>` | `--dsh <path>` | явный путь к `dsh` |
 | `-DryRun` | `--dry-run` | показать план и ничего не менять |
+| `-Version v0.2.2` | `--version v0.2.2` | тег или ветка GitHub вместо `main` |
+| `-Source <dir>` | `--source <dir>` | поставить из своей папки |
+| `-FromGitHub` | `--from-github` | игнорировать локальный клон, скачать заново |
+| `-Dest <dir>` | `--dest <dir>` | каталог кеша скачанных исходников |
+
+Кеш исходников: `%LOCALAPPDATA%\VoiceAudioRus\src` (Windows),
+`~/Library/Application Support/VoiceAudioRus/src` (macOS),
+`~/.local/share/voice-audio-rus/src` (Linux).
 
 Перезапустите DSH (правка клиента подхватывается и по `Ctrl+R`), откройте
 **Плагины → Voice Audio Rus** и нажмите **«Скачать все модели»** — загрузка

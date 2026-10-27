@@ -1,23 +1,31 @@
 ﻿<#
 .SYNOPSIS
-  Install Voice Audio Rus into a DeepSeek Harness profile with one command.
+  Download Voice Audio Rus from GitHub and install it into a DeepSeek Harness profile.
 
 .DESCRIPTION
-  Wires this checkout into the chosen profile as a DSH bundle:
-  adds the package dependency (link: by default, file: with -Copy) and
-  makes sure the bundle is selected in dsh.profile.bundles.
+  Works from a cloned repository (uses the local ./plugin) or standalone: when no
+  repository sits next to this script, it downloads the sources from GitHub into a
+  cache directory and installs the plugin from there.
+
+  Installation adds the package dependency (link: by default, file: with -Copy) to
+  the chosen profile and makes sure the bundle is selected in dsh.profile.bundles.
 
 .EXAMPLE
-  pwsh -File .\install.ps1
+  powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 .EXAMPLE
-  pwsh -File .\install.ps1 -Profile web
+  # completely standalone, no clone needed
+  irm https://raw.githubusercontent.com/Vasyarot/voice-audio-rus/main/install.ps1 -OutFile "$env:TEMP\voice-install.ps1"
+  powershell -ExecutionPolicy Bypass -File "$env:TEMP\voice-install.ps1"
 
 .EXAMPLE
-  pwsh -File .\install.ps1 -Copy        # copy files into the profile instead of linking
+  .\install.ps1 -Profile web
 
 .EXAMPLE
-  pwsh -File .\install.ps1 -Uninstall
+  .\install.ps1 -Copy -Version v0.2.2
+
+.EXAMPLE
+  .\install.ps1 -Uninstall
 #>
 [CmdletBinding()]
 param(
@@ -25,10 +33,16 @@ param(
   [switch]$Copy,
   [switch]$Uninstall,
   [string]$Dsh,
-  [switch]$DryRun
+  [switch]$DryRun,
+  [string]$Source,
+  [string]$Version = 'main',
+  [string]$Repo = 'Vasyarot/voice-audio-rus',
+  [switch]$FromGitHub,
+  [string]$Dest
 )
 
 $ErrorActionPreference = 'Stop'
+$defaultPackage = 'dsh-plugin-voice-studio'
 
 function Fail([string]$Message) {
   Write-Host "x $Message" -ForegroundColor Red
@@ -43,23 +57,105 @@ function Ok([string]$Message) {
   Write-Host "[ok] $Message" -ForegroundColor Green
 }
 
-# ---------------------------------------------------------------- plugin
+function Test-PluginDir([string]$Path) {
+  if (-not $Path) { return $false }
+  return (Test-Path -LiteralPath (Join-Path $Path 'plugin\package.json')) -or
+         (Test-Path -LiteralPath (Join-Path $Path 'plugin/package.json'))
+}
 
-$root = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
-$pluginDir = Join-Path $root 'plugin'
-$manifestPath = Join-Path $pluginDir 'package.json'
-if (-not (Test-Path -LiteralPath $manifestPath)) {
-  Fail "не найден $manifestPath — запустите скрипт из каталога репозитория Voice Audio Rus"
+function Get-CacheRoot {
+  if ($Dest) { return $Dest }
+  if ($env:OS -eq 'Windows_NT') {
+    $base = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { $env:USERPROFILE }
+    return (Join-Path $base 'VoiceAudioRus')
+  }
+  if ($env:XDG_DATA_HOME) { return (Join-Path $env:XDG_DATA_HOME 'voice-audio-rus') }
+  return (Join-Path $HOME '.local/share/voice-audio-rus')
 }
-$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-$name = $manifest.name
-if (-not $name) { Fail "в $manifestPath нет поля name" }
-$patch = $manifest.dsh.bundle.patch
-if (-not $patch) {
-  Fail "$name не является DSH-бандлом: нет dsh.bundle.patch в package.json"
+
+function Invoke-Download([string]$Target) {
+  $zipUrl = "https://codeload.github.com/$Repo/zip/refs/heads/$Version"
+  $tagUrl = "https://codeload.github.com/$Repo/zip/refs/tags/$Version"
+  $work = Join-Path ([IO.Path]::GetTempPath()) ('voice-audio-rus-' + [guid]::NewGuid().ToString('N'))
+  $zip = "$work.zip"
+  New-Item -ItemType Directory -Path $work -Force | Out-Null
+
+  Step "скачиваю $Repo@$Version с GitHub"
+  $downloaded = $false
+  foreach ($url in @($zipUrl, $tagUrl)) {
+    try {
+      Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing -ErrorAction Stop
+      $downloaded = $true
+      break
+    } catch {
+      if ($url -eq $tagUrl) {
+        Remove-Item $work, $zip -Recurse -Force -ErrorAction SilentlyContinue
+        Fail "не удалось скачать $Repo@${Version}: $($_.Exception.Message)"
+      }
+    }
+  }
+  if (-not $downloaded) { Fail "не удалось скачать $Repo@$Version" }
+
+  try {
+    Expand-Archive -LiteralPath $zip -DestinationPath $work -Force -ErrorAction Stop
+  } catch {
+    Remove-Item $work, $zip -Recurse -Force -ErrorAction SilentlyContinue
+    Fail "не удалось распаковать архив: $($_.Exception.Message)"
+  }
+
+  $inner = Get-ChildItem -Path $work -Directory | Select-Object -First 1
+  if (-not $inner) {
+    Remove-Item $work, $zip -Recurse -Force -ErrorAction SilentlyContinue
+    Fail 'архив пустой'
+  }
+  if (-not (Test-PluginDir $inner.FullName)) {
+    Remove-Item $work, $zip -Recurse -Force -ErrorAction SilentlyContinue
+    Fail "в архиве нет plugin/package.json — $Repo@$Version не похож на Voice Audio Rus"
+  }
+
+  if (Test-Path -LiteralPath $Target) { Remove-Item -LiteralPath $Target -Recurse -Force }
+  New-Item -ItemType Directory -Path $Target -Force | Out-Null
+  Copy-Item -Path (Join-Path $inner.FullName '*') -Destination $Target -Recurse -Force
+  Remove-Item $work, $zip -Recurse -Force -ErrorAction SilentlyContinue
+  Ok "исходники обновлены: $Target"
+  return $Target
 }
-if (-not (Test-Path -LiteralPath (Join-Path $pluginDir $patch))) {
-  Fail "не найден файл патча $patch внутри $pluginDir"
+
+# ---------------------------------------------------------------- source
+
+$root = $null
+if ($Source) {
+  if (-not (Test-PluginDir $Source)) { Fail "в $Source нет plugin\package.json" }
+  $root = (Resolve-Path -LiteralPath $Source).Path
+} elseif (-not $FromGitHub -and $PSScriptRoot -and (Test-PluginDir $PSScriptRoot)) {
+  $root = $PSScriptRoot
+} elseif ($Uninstall) {
+  # Removing the dependency does not need the sources.
+  $root = $null
+} else {
+  $cache = Join-Path (Get-CacheRoot) 'src'
+  $root = Invoke-Download $cache
+}
+
+$pluginDir = if ($root) { Join-Path $root 'plugin' } else { $null }
+$name = $defaultPackage
+$manifestPath = if ($pluginDir) { Join-Path $pluginDir 'package.json' } else { $null }
+if ($manifestPath -and (Test-Path -LiteralPath $manifestPath)) {
+  $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+  if ($manifest.name) { $name = $manifest.name }
+  if (-not $Uninstall) {
+    $patch = $manifest.dsh.bundle.patch
+    if (-not $patch) { Fail "$name не является DSH-бандлом: нет dsh.bundle.patch в package.json" }
+    if (-not (Test-Path -LiteralPath (Join-Path $pluginDir $patch))) {
+      Fail "не найден файл патча $patch внутри $pluginDir"
+    }
+    $client = Join-Path $pluginDir 'client.js'
+    if (-not (Test-Path -LiteralPath $client)) {
+      Fail "в $pluginDir нет собранного client.js — это не готовый релиз"
+    }
+  }
+} elseif (-not $Uninstall) {
+  Fail "не удалось получить исходники плагина"
 }
 
 # ---------------------------------------------------------------- dsh
@@ -77,14 +173,12 @@ function Resolve-Dsh([string]$Explicit) {
   if ($onPath) { return $onPath.Source }
 
   $candidates = @()
-  if ($IsWindows -or $env:OS -eq 'Windows_NT') {
+  if ($env:OS -eq 'Windows_NT') {
     $candidates += Join-Path $env:LOCALAPPDATA 'Programs\DeepSeek Harness\resources\runtime\cli\bin\dsh.cmd'
     $candidates += Join-Path $env:ProgramFiles 'DeepSeek Harness\resources\runtime\cli\bin\dsh.cmd'
   }
-  if ($IsMacOS) {
-    $candidates += '/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh'
-  }
-  $candidates += Join-Path $HOME '.local/bin/dsh'
+  $candidates += '/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh'
+  $candidates += (Join-Path $HOME '.local/bin/dsh')
   $candidates += '/usr/local/bin/dsh'
   foreach ($candidate in $candidates) {
     if ($candidate -and (Test-Path -LiteralPath $candidate)) { return $candidate }
@@ -117,16 +211,25 @@ if (-not (Test-Path -LiteralPath $profileDir)) {
 
 # ---------------------------------------------------------------- spec
 
-$spec = '{0}:{1}' -f ($(if ($Copy) { 'file' } else { 'link' })), $pluginDir
+$spec = if ($pluginDir) {
+  '{0}:{1}' -f ($(if ($Copy) { 'file' } else { 'link' })), $pluginDir
+} else { '' }
 
 Write-Host ''
 Write-Host 'Voice Audio Rus' -ForegroundColor White
-Write-Host "  плагин : $name"
-Write-Host "  каталог: $pluginDir"
+if ($pluginDir) { Write-Host "  плагин : $name" }
+else { Write-Host "  плагин : $name (только удаление)" }
+if ($pluginDir) { Write-Host "  откуда : $pluginDir" }
 Write-Host "  dsh    : $dshBin"
 Write-Host "  профиль: $profileName ($profileDir)"
-Write-Host "  режим  : $(if ($Uninstall) { 'удаление' } else { $spec })"
+if ($Uninstall) {
+  Write-Host '  режим  : удаление'
+} else {
+  Write-Host "  режим  : $spec"
+}
 Write-Host ''
+
+if (-not $pluginDir -and -not $Uninstall) { Fail 'нет исходников для установки' }
 
 if ($DryRun) {
   Ok 'DryRun: команды не выполнялись'
@@ -158,19 +261,19 @@ if (Test-Path -LiteralPath $profileManifest) {
   if ($Uninstall) {
     if ($selected) {
       $bundles = @($bundles | Where-Object { $_ -ne $name })
-      if (-not $profileJson.dsh) { $profileJson | Add-Member -NotePropertyName dsh -NotePropertyValue ([pscustomobject]@{}) }
-      if (-not $profileJson.dsh.profile) { $profileJson.dsh | Add-Member -NotePropertyName profile -NotePropertyValue ([pscustomobject]@{}) }
+      if (-not $profileJson.dsh) { $profileJson | Add-Member -NotePropertyName dsh -NotePropertyValue (New-Object psobject) }
+      if (-not $profileJson.dsh.profile) { $profileJson.dsh | Add-Member -NotePropertyName profile -NotePropertyValue (New-Object psobject) }
       $profileJson.dsh.profile | Add-Member -NotePropertyName bundles -NotePropertyValue $bundles -Force
       $profileJson | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $profileManifest -Encoding utf8
-      Ok "бандл убран из dsh.profile.bundles"
+      Ok 'бандл убран из dsh.profile.bundles'
     }
   } elseif (-not $selected) {
     $bundles += $name
-    if (-not $profileJson.dsh) { $profileJson | Add-Member -NotePropertyName dsh -NotePropertyValue ([pscustomobject]@{}) }
-    if (-not $profileJson.dsh.profile) { $profileJson.dsh | Add-Member -NotePropertyName profile -NotePropertyValue ([pscustomobject]@{}) }
+    if (-not $profileJson.dsh) { $profileJson | Add-Member -NotePropertyName dsh -NotePropertyValue (New-Object psobject) }
+    if (-not $profileJson.dsh.profile) { $profileJson.dsh | Add-Member -NotePropertyName profile -NotePropertyValue (New-Object psobject) }
     $profileJson.dsh.profile | Add-Member -NotePropertyName bundles -NotePropertyValue $bundles -Force
     $profileJson | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $profileManifest -Encoding utf8
-    Ok "бандл добавлен в dsh.profile.bundles"
+    Ok 'бандл добавлен в dsh.profile.bundles'
   } else {
     Ok 'бандл уже выбран в профиле'
   }
@@ -178,10 +281,10 @@ if (Test-Path -LiteralPath $profileManifest) {
 
 Write-Host ''
 if ($Uninstall) {
-  Ok "Готово. Перезапустите DSH, чтобы плагин исчез из интерфейса."
+  Ok 'Готово. Перезапустите DSH, чтобы плагин исчез из интерфейса.'
 } else {
   Ok 'Готово.'
   Write-Host '  1. Перезапустите DSH (настольное приложение) или `dsh web`.'
-  Write-Host '  2. Плагины → Voice Audio Rus → «Скачать все модели».'
-  Write-Host '  3. Правки клиента подхватываются по Ctrl+R после `node tools/build.mjs`.'
+  Write-Host '  2. Плагины -> Voice Audio Rus -> «Скачать все модели».'
+  Write-Host "  3. Обновить плагин: повторите этот скрипт — он перекачает GitHub@$Version."
 }

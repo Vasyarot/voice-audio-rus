@@ -1,23 +1,47 @@
 #!/usr/bin/env bash
-# Install Voice Audio Rus into a DeepSeek Harness profile with one command.
+# Voice Audio Rus — install into a DeepSeek Harness profile with one command.
 #
-#   ./install.sh                 # auto-detect dsh and profile (desktop, else web)
-#   ./install.sh --profile web   # target an explicit profile
-#   ./install.sh --copy          # copy files into the profile instead of linking
-#   ./install.sh --uninstall     # remove the plugin from the profile
-#
-# Env: DSH_BIN (path to dsh), DSH_HOME (default ~/.dsh)
+# Works from a cloned repository (uses ./plugin) or standalone: with no repository
+# next to this script it downloads the sources from GitHub first.
 set -euo pipefail
 
-say()  { printf '\033[36m•\033[0m %s\n' "$1"; }
-ok()   { printf '\033[32m✓\033[0m %s\n' "$1"; }
-fail() { printf '\033[31m×\033[0m %s\n' "$1" >&2; exit 1; }
+usage() {
+  cat <<'EOF'
+Voice Audio Rus installer
+
+  ./install.sh                     auto-detect dsh and profile (desktop, else web)
+  ./install.sh --profile web       target an explicit profile
+  ./install.sh --copy              copy files into the profile instead of linking
+  ./install.sh --uninstall         remove the plugin from the profile
+  ./install.sh --dry-run           show the plan and change nothing
+  ./install.sh --source <dir>      install from a local checkout
+  ./install.sh --version v0.2.2    GitHub ref to download (default: main)
+  ./install.sh --repo owner/name   GitHub repository (default: Vasyarot/voice-audio-rus)
+  ./install.sh --from-github       ignore the local checkout and download instead
+  ./install.sh --dest <dir>        cache directory for downloaded sources
+
+Standalone, without cloning:
+
+  curl -fsSL https://raw.githubusercontent.com/Vasyarot/voice-audio-rus/main/install.sh | bash
+
+Env: DSH_BIN (path to dsh), DSH_HOME (default ~/.dsh)
+EOF
+}
+
+say()  { printf '\033[36m>\033[0m %s\n' "$1" >&2; }
+ok()   { printf '\033[32mok\033[0m %s\n' "$1" >&2; }
+fail() { printf '\033[31mx\033[0m %s\n' "$1" >&2; exit 1; }
 
 PROFILE=""
 MODE="link"
 UNINSTALL=0
 DSH_ARG=""
 DRY_RUN=0
+SOURCE=""
+VERSION="main"
+REPO="Vasyarot/voice-audio-rus"
+FROM_GITHUB=0
+DEST=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -27,24 +51,112 @@ while [ $# -gt 0 ]; do
     --uninstall)  UNINSTALL=1; shift ;;
     --dsh)        [ $# -ge 2 ] || fail "нужно значение для $1"; DSH_ARG="$2"; shift 2 ;;
     --dry-run|-n) DRY_RUN=1; shift ;;
-    --help|-h)    sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --source)     [ $# -ge 2 ] || fail "нужно значение для $1"; SOURCE="$2"; shift 2 ;;
+    --version)    [ $# -ge 2 ] || fail "нужно значение для $1"; VERSION="$2"; shift 2 ;;
+    --repo)       [ $# -ge 2 ] || fail "нужно значение для $1"; REPO="$2"; shift 2 ;;
+    --from-github) FROM_GITHUB=1; shift ;;
+    --dest)       [ $# -ge 2 ] || fail "нужно значение для $1"; DEST="$2"; shift 2 ;;
+    --help|-h)    usage; exit 0 ;;
     *)            fail "неизвестный аргумент: $1 (см. --help)" ;;
   esac
 done
 
-# ---------------------------------------------------------------- plugin
-
-ROOT="$(cd "$(dirname "$0")" && pwd)"
-PLUGIN_DIR="$ROOT/plugin"
-MANIFEST="$PLUGIN_DIR/package.json"
-[ -f "$MANIFEST" ] || fail "не найден $MANIFEST — запустите скрипт из каталога репозитория Voice Audio Rus"
 command -v node >/dev/null 2>&1 || fail "нужен node (он уже есть у DSH, добавьте его в PATH)"
 
-NAME="$(node -e 'const m=require(process.argv[1]);if(!m.name)process.exit(1);process.stdout.write(m.name)' "$MANIFEST")" \
-  || fail "в $MANIFEST нет поля name"
-PATCH="$(node -e 'const m=require(process.argv[1]);process.stdout.write((m.dsh&&m.dsh.bundle&&m.dsh.bundle.patch)||"")' "$MANIFEST")"
-[ -n "$PATCH" ] || fail "$NAME не является DSH-бандлом: нет dsh.bundle.patch в package.json"
-[ -f "$PLUGIN_DIR/$PATCH" ] || fail "не найден файл патча $PATCH внутри $PLUGIN_DIR"
+# ---------------------------------------------------------------- source
+
+SCRIPT_DIR=""
+SELF="${BASH_SOURCE[0]:-}"
+if [ -n "$SELF" ] && [ -f "$SELF" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+fi
+
+has_plugin() {
+  [ -n "${1:-}" ] && [ -f "$1/plugin/package.json" ]
+}
+
+cache_root() {
+  if [ -n "$DEST" ]; then
+    printf '%s' "$DEST"
+    return
+  fi
+  if [ "$(uname -s)" = "Darwin" ]; then
+    printf '%s' "$HOME/Library/Application Support/VoiceAudioRus"
+    return
+  fi
+  printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}/voice-audio-rus"
+}
+
+fetch_repo() {
+  local dest="$1" tmp inner candidate url_heads url_tags
+  command -v tar >/dev/null 2>&1 || fail "нужен tar"
+  command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || fail "нужен curl или wget"
+
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
+  url_heads="https://codeload.github.com/$REPO/tar.gz/refs/heads/$VERSION"
+  url_tags="https://codeload.github.com/$REPO/tar.gz/refs/tags/$VERSION"
+
+  say "скачиваю $REPO@$VERSION с GitHub"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$url_heads" -o "$tmp/repo.tgz" 2>/dev/null ||
+      curl -fsSL "$url_tags" -o "$tmp/repo.tgz" 2>/dev/null ||
+      fail "не удалось скачать $REPO@$VERSION (проверьте сеть, ref и --repo)"
+  else
+    wget -qO "$tmp/repo.tgz" "$url_heads" 2>/dev/null ||
+      wget -qO "$tmp/repo.tgz" "$url_tags" 2>/dev/null ||
+      fail "не удалось скачать $REPO@$VERSION (проверьте сеть, ref и --repo)"
+  fi
+
+  tar -xzf "$tmp/repo.tgz" -C "$tmp" || fail "не удалось распаковать архив"
+  inner=""
+  for candidate in "$tmp"/*/; do
+    [ -d "$candidate" ] || continue
+    inner="${candidate%/}"
+    break
+  done
+  [ -n "$inner" ] || fail "архив пустой"
+  has_plugin "$inner" || fail "в архиве нет plugin/package.json — $REPO@$VERSION не похож на Voice Audio Rus"
+
+  rm -rf "$dest"
+  mkdir -p "$dest"
+  cp -R "$inner"/. "$dest"/
+  rm -rf "$tmp"
+  trap - EXIT
+  ok "исходники обновлены: $dest"
+}
+
+ROOT=""
+if [ -n "$SOURCE" ]; then
+  has_plugin "$SOURCE" || fail "в $SOURCE нет plugin/package.json"
+  ROOT="$(cd "$SOURCE" && pwd)"
+elif [ "$FROM_GITHUB" -eq 0 ] && has_plugin "$SCRIPT_DIR"; then
+  ROOT="$SCRIPT_DIR"
+elif [ "$UNINSTALL" -eq 1 ]; then
+  ROOT=""
+else
+  CACHE="$(cache_root)/src"
+  fetch_repo "$CACHE"
+  ROOT="$CACHE"
+  has_plugin "$ROOT" || fail "не удалось подготовить исходники в $CACHE"
+fi
+
+PLUGIN_DIR=""
+NAME="dsh-plugin-voice-studio"
+if [ -n "$ROOT" ]; then
+  PLUGIN_DIR="$ROOT/plugin"
+  MANIFEST="$PLUGIN_DIR/package.json"
+  NAME="$(node -e 'const m=require(process.argv[1]);if(!m.name)process.exit(1);process.stdout.write(m.name)' "$MANIFEST")" \
+    || fail "в $MANIFEST нет поля name"
+  if [ "$UNINSTALL" -eq 0 ]; then
+    PATCH="$(node -e 'const m=require(process.argv[1]);process.stdout.write((m.dsh&&m.dsh.bundle&&m.dsh.bundle.patch)||"")' "$MANIFEST")"
+    [ -n "$PATCH" ] || fail "$NAME не является DSH-бандлом: нет dsh.bundle.patch в package.json"
+    [ -f "$PLUGIN_DIR/$PATCH" ] || fail "не найден файл патча $PATCH внутри $PLUGIN_DIR"
+    [ -f "$PLUGIN_DIR/client.js" ] || fail "в $PLUGIN_DIR нет собранного client.js — это не готовый релиз"
+  fi
+elif [ "$UNINSTALL" -eq 0 ]; then
+  fail "не удалось получить исходники плагина"
+fi
 
 # ---------------------------------------------------------------- dsh
 
@@ -105,11 +217,14 @@ if [ ! -d "$PROFILE_DIR" ]; then
   say "профиль $PROFILE будет создан при первом запуске DSH"
 fi
 
-SPEC="$MODE:$PLUGIN_DIR"
+SPEC=""
+if [ -n "$PLUGIN_DIR" ]; then
+  SPEC="$MODE:$PLUGIN_DIR"
+fi
 
 printf '\n\033[97mVoice Audio Rus\033[0m\n'
 printf '  плагин : %s\n' "$NAME"
-printf '  каталог: %s\n' "$PLUGIN_DIR"
+if [ -n "$PLUGIN_DIR" ]; then printf '  откуда : %s\n' "$PLUGIN_DIR"; fi
 printf '  dsh    : %s\n' "$DSH"
 printf '  профиль: %s (%s)\n' "$PROFILE" "$PROFILE_DIR"
 if [ "$UNINSTALL" -eq 1 ]; then
@@ -174,6 +289,6 @@ if [ "$UNINSTALL" -eq 1 ]; then
 else
   ok "Готово."
   printf '  1. Перезапустите DSH (настольное приложение) или `dsh web`.\n'
-  printf '  2. Плагины → Voice Audio Rus → «Скачать все модели».\n'
-  printf '  3. Правки клиента подхватываются по Ctrl+R после `node tools/build.mjs`.\n'
+  printf '  2. Плагины -> Voice Audio Rus -> «Скачать все модели».\n'
+  printf '  3. Обновить плагин: повторите этот скрипт — он перекачает GitHub@%s.\n' "$VERSION"
 fi

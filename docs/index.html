@@ -152,15 +152,14 @@
   </section>
 
   <section class="install">
-    <header><span>Установка одной командой</span><button class="copy" data-copy="git clone https://github.com/Vasyarot/voice-audio-rus &amp;&amp; cd voice-audio-rus&#10;powershell -ExecutionPolicy Bypass -File .\install.ps1    # Windows&#10;./install.sh                                             # macOS / Linux">Копировать</button></header>
-    <pre><code>git clone https://github.com/Vasyarot/voice-audio-rus && cd voice-audio-rus
-
-# Windows
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+    <header><span>Установка одной командой · без клонирования</span><button class="copy" data-copy="irm https://raw.githubusercontent.com/Vasyarot/voice-audio-rus/main/install.ps1 -OutFile &quot;$env:TEMP\voice-audio-rus.ps1&quot;&#10;powershell -ExecutionPolicy Bypass -File &quot;$env:TEMP\voice-audio-rus.ps1&quot;&#10;&#10;curl -fsSL https://raw.githubusercontent.com/Vasyarot/voice-audio-rus/main/install.sh | bash">Копировать</button></header>
+    <pre><code># Windows (PowerShell)
+irm https://raw.githubusercontent.com/Vasyarot/voice-audio-rus/main/install.ps1 -OutFile "$env:TEMP\voice-audio-rus.ps1"
+powershell -ExecutionPolicy Bypass -File "$env:TEMP\voice-audio-rus.ps1"
 
 # macOS / Linux
-./install.sh</code></pre>
-    <p class="note">Скрипт сам находит <code>dsh</code>, выбирает профиль (<code>desktop</code> или <code>web</code>), ставит пакет ссылкой на эту папку и добавляет бандл в <code>dsh.profile.bundles</code>. Флаги: <code>--profile</code>, <code>--copy</code>, <code>--uninstall</code>, <code>--dry-run</code>.</p>
+curl -fsSL https://raw.githubusercontent.com/Vasyarot/voice-audio-rus/main/install.sh | bash</code></pre>
+    <p class="note">Скрипт скачивает исходники с GitHub, сам находит <code>dsh</code>, выбирает профиль (<code>desktop</code> или <code>web</code>), ставит пакет и добавляет бандл в <code>dsh.profile.bundles</code>. Флаги: <code>--profile</code>, <code>--copy</code>, <code>--uninstall</code>, <code>--version</code>, <code>--dry-run</code>. Повторный запуск обновляет плагин.</p>
   </section>
 
   <footer>
