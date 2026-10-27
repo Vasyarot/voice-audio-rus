@@ -69,3 +69,16 @@ export function postProcess(raw: string, settings: Settings): string {
 export function sentenceCount(text: string): number {
   return (text.match(/[.!?…]+/gu) ?? []).length
 }
+
+/**
+ * Append one live-mode piece to the text already dictated in this session.
+ * A leading punctuation mark attaches to the previous word; everything else is
+ * separated by a single space.
+ */
+export function joinLiveText(previous: string, piece: string): string {
+  const clean = piece.replace(/\s+/gu, ' ').trim()
+  if (clean === '') return previous
+  if (previous === '') return clean
+  if (/^[,.;:!?…»)]/u.test(clean)) return `${previous}${clean}`
+  return `${previous} ${clean}`
+}

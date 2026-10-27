@@ -12,9 +12,10 @@ await mkdir(resolve(root, '.tmp'), { recursive: true })
 await writeFile(
   resolve(root, '.tmp/unit-entry.ts'),
   `
-export { postProcess } from '../plugin/src/client/text'
-export { encodeWav, downsample, processSamples } from '../plugin/src/client/audio'
+export { postProcess, joinLiveText } from '../plugin/src/client/text'
+export { encodeWav, downsample, processSamples, wavFromSamples } from '../plugin/src/client/audio'
 export { DEFAULT_SETTINGS, getSettings, resetSettings, setSettings } from '../plugin/src/client/settings'
+export { isSpeechModel, recommendModel, scoreModel, normalizeBaseURL } from '../plugin/src/client/cloud'
 `,
 )
 
@@ -39,7 +40,7 @@ await build({
   logLevel: 'warning',
 })
 
-const { postProcess, encodeWav, downsample, processSamples, DEFAULT_SETTINGS, resetSettings, setSettings, getSettings } = await import(
+const { postProcess, encodeWav, downsample, processSamples, DEFAULT_SETTINGS, resetSettings, setSettings, getSettings, joinLiveText, wavFromSamples, isSpeechModel, recommendModel, scoreModel, normalizeBaseURL } = await import(
   new URL('../.tmp/unit.mjs', import.meta.url).href
 )
 
@@ -97,3 +98,48 @@ for (const value of processed) assert.ok(Number.isFinite(value))
 assert.ok(Math.abs(processed[100]) < Math.abs(processed[40000]), 'gate should suppress leading silence')
 
 console.log('unit tests passed')
+
+// ---- dictation mode, live fragments and cloud model ranking
+
+assert.equal(DEFAULT_SETTINGS.mode, 'utterance')
+assert.deepEqual(DEFAULT_SETTINGS.live, { chunkSeconds: 6, pauseMs: 700 })
+
+setSettings({ ...DEFAULT_SETTINGS, mode: 'live', live: { chunkSeconds: 99, pauseMs: 10 } })
+const liveSettings = getSettings()
+assert.equal(liveSettings.mode, 'live', 'live mode must persist')
+assert.equal(liveSettings.live.chunkSeconds, 15, 'chunk seconds are clamped')
+assert.equal(liveSettings.live.pauseMs, 200, 'pause is clamped')
+setSettings({ ...DEFAULT_SETTINGS, mode: 'weird' })
+assert.equal(getSettings().mode, 'utterance', 'unknown mode falls back to the button mode')
+setSettings({ ...DEFAULT_SETTINGS, mode: 'live' })
+resetSettings({ providerId: 'cloud-openai', language: 'ru' })
+assert.equal(getSettings().mode, 'utterance', 'reset restores the button mode')
+assert.equal(getSettings().providerId, 'cloud-openai')
+
+assert.equal(joinLiveText('', ' Привет '), 'Привет')
+assert.equal(joinLiveText('Привет', ' мир'), 'Привет мир')
+assert.equal(joinLiveText('Привет', '.'), 'Привет.')
+assert.equal(joinLiveText('Привет', ', мир'), 'Привет, мир')
+assert.equal(joinLiveText('Привет', '   '), 'Привет')
+
+const liveWav = wavFromSamples(new Float32Array(48000).fill(0.2), 48000, structuredClone(DEFAULT_SETTINGS))
+const liveView = new DataView(liveWav.buffer)
+assert.equal(liveView.getUint32(24, true), 16000)
+assert.equal(liveView.getUint32(40, true), 32000)
+assert.equal(liveWav.length, 44 + 32000)
+assert.equal(wavFromSamples(new Float32Array(0), 48000, structuredClone(DEFAULT_SETTINGS)).length, 44)
+
+assert.equal(normalizeBaseURL(' https://api.example/v1/ '), 'https://api.example/v1')
+assert.ok(isSpeechModel('whisper-1'))
+assert.ok(isSpeechModel('gpt-4o-transcribe'))
+assert.ok(isSpeechModel('whisper-large-v3-turbo'))
+assert.ok(!isSpeechModel('tts-1'))
+assert.ok(!isSpeechModel('text-embedding-3-small'))
+assert.ok(scoreModel('whisper-1') > scoreModel('tts-1'))
+const catalogList = ['gpt-4o-mini-tts', 'text-embedding-3-small', 'whisper-1', 'gpt-4o-transcribe']
+assert.equal(recommendModel(catalogList), 'gpt-4o-transcribe')
+assert.equal(recommendModel(['whisper-large-v3', 'whisper-large-v3-turbo']), 'whisper-large-v3-turbo')
+assert.equal(recommendModel(['tts-1', 'dall-e-3']), null)
+assert.equal(recommendModel([]), null)
+
+console.log('live mode and model ranking tests passed')

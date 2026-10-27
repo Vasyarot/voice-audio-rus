@@ -3,9 +3,13 @@ import { useEffect, useState } from 'react'
 
 export type DictEntry = { from: string; to: string }
 
+export type DictationMode = 'utterance' | 'live'
+
 export type Settings = {
   deviceId: string
   deviceLabel: string
+  mode: DictationMode
+  live: { chunkSeconds: number; pauseMs: number }
   browser: { echoCancellation: boolean; noiseSuppression: boolean; autoGainControl: boolean }
   rnnoise: { enabled: boolean; mix: number }
   highpass: { enabled: boolean; hz: number }
@@ -24,6 +28,8 @@ export type Settings = {
 export const DEFAULT_SETTINGS: Settings = {
   deviceId: '',
   deviceLabel: '',
+  mode: 'utterance',
+  live: { chunkSeconds: 6, pauseMs: 700 },
   browser: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
   rnnoise: { enabled: true, mix: 1 },
   highpass: { enabled: true, hz: 80 },
@@ -67,6 +73,11 @@ export function normalizeSettings(raw: unknown): Settings {
   return {
     deviceId: text(value.deviceId, base.deviceId),
     deviceLabel: text(value.deviceLabel, base.deviceLabel),
+    mode: value.mode === 'live' ? 'live' : 'utterance',
+    live: {
+      chunkSeconds: clamp(value.live?.chunkSeconds, 2, 15, base.live.chunkSeconds),
+      pauseMs: clamp(value.live?.pauseMs, 200, 3000, base.live.pauseMs),
+    },
     browser: {
       echoCancellation: bool(value.browser?.echoCancellation, base.browser.echoCancellation),
       noiseSuppression: bool(value.browser?.noiseSuppression, base.browser.noiseSuppression),

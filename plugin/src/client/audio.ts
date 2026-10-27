@@ -113,6 +113,12 @@ export class VoiceRecorder {
   private analyser: AnalyserNode | null = null
   private chunks: BlobPart[] = []
   private levelBuffer = new Float32Array(1024)
+  /** Raw processed PCM captured for live (incremental) transcription. */
+  private pcmChunks: Float32Array[] = []
+  private pcmTotal = 0
+  private tap: { processor: ScriptProcessorNode; sink: GainNode } | null = null
+  /** Rate of the samples returned by `drainPcm()`. */
+  sampleRate = TARGET_SAMPLE_RATE
   rnnoiseApplied = false
   rnnoiseFailure: string | null = null
   startedAt = 0
@@ -121,7 +127,11 @@ export class VoiceRecorder {
     this.settings = settings
   }
 
-  async start(): Promise<void> {
+  /**
+   * Open the microphone. `pcmOnly` skips the MediaRecorder container: live mode
+   * only needs the PCM tap, so it saves CPU and memory on long sessions.
+   */
+  async start(pcmOnly = false): Promise<void> {
     if (typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       throw new RecorderError('unavailable')
     }
@@ -197,19 +207,23 @@ export class VoiceRecorder {
 
     const destination = context.createMediaStreamDestination()
     analyser.connect(destination)
+    this.sampleRate = context.sampleRate
+    this.installTap(context, analyser)
 
     const mimeType = pickMimeType()
-    const recorder = mimeType === '' ? new MediaRecorder(destination.stream) : new MediaRecorder(destination.stream, { mimeType })
-    this.recorder = recorder
-    recorder.ondataavailable = (event) => {
-      if (event.data && event.data.size > 0) this.chunks.push(event.data)
+    if (!pcmOnly) {
+      const recorder = mimeType === '' ? new MediaRecorder(destination.stream) : new MediaRecorder(destination.stream, { mimeType })
+      this.recorder = recorder
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) this.chunks.push(event.data)
+      }
+      recorder.start(250)
     }
     for (const track of stream.getTracks()) {
       track.addEventListener('ended', () => {
         this.analyser = null
       })
     }
-    recorder.start(250)
     this.startedAt = performance.now()
   }
 
@@ -226,6 +240,52 @@ export class VoiceRecorder {
 
   elapsedSeconds(): number {
     return this.startedAt === 0 ? 0 : (performance.now() - this.startedAt) / 1000
+  }
+
+  /**
+   * Tap the processed signal into a PCM ring so the live mode can cut short
+   * fragments while the microphone is still open. The tap is silent: it ends at
+   * a zero-gain node, it only keeps the graph running.
+   */
+  private installTap(context: AudioContext, tail: AudioNode): void {
+    try {
+      const processor = context.createScriptProcessor(4096, 1, 1)
+      processor.onaudioprocess = (event) => {
+        const channel = event.inputBuffer.getChannelData(0)
+        const copy = new Float32Array(channel.length)
+        copy.set(channel)
+        this.pcmChunks.push(copy)
+        this.pcmTotal += copy.length
+        // Never keep more than 30 s of unclaimed audio (a stalled provider must not grow memory).
+        const cap = context.sampleRate * 30
+        while (this.pcmTotal > cap && this.pcmChunks.length > 1) {
+          const dropped = this.pcmChunks.shift()
+          this.pcmTotal -= dropped ? dropped.length : 0
+        }
+      }
+      const sink = context.createGain()
+      sink.gain.value = 0
+      tail.connect(processor)
+      processor.connect(sink)
+      sink.connect(context.destination)
+      this.tap = { processor, sink }
+    } catch {
+      // ScriptProcessor is unavailable: recording still works, live mode reports it.
+      this.tap = null
+    }
+  }
+
+  /** Processed samples captured since the previous call, at `sampleRate`. */
+  drainPcm(): Float32Array {
+    const out = new Float32Array(this.pcmTotal)
+    let offset = 0
+    for (const chunk of this.pcmChunks) {
+      out.set(chunk, offset)
+      offset += chunk.length
+    }
+    this.pcmChunks = []
+    this.pcmTotal = 0
+    return out
   }
 
   /**
@@ -275,6 +335,19 @@ export class VoiceRecorder {
   }
 
   async dispose(): Promise<void> {
+    const tap = this.tap
+    this.tap = null
+    if (tap) {
+      try {
+        tap.processor.onaudioprocess = null
+        tap.processor.disconnect()
+        tap.sink.disconnect()
+      } catch {
+        /* already detached */
+      }
+    }
+    this.pcmChunks = []
+    this.pcmTotal = 0
     const recorder = this.recorder
     this.recorder = null
     if (recorder && recorder.state !== 'inactive') {
@@ -438,6 +511,14 @@ export function audioBase64(bytes: Uint8Array): string {
   let text = ''
   for (let i = 0; i < bytes.length; i += 8192) text += String.fromCharCode(...bytes.subarray(i, i + 8192))
   return btoa(text)
+}
+
+/** Gate → AGC → limiter → 16 kHz PCM16 WAV for one live fragment. */
+export function wavFromSamples(samples: Float32Array, sampleRate: number, settings: Settings): Uint8Array {
+  const processed = processSamples(samples, settings, sampleRate)
+  const resampled = downsample(processed, sampleRate, WAV_SAMPLE_RATE)
+  applyFades(resampled, WAV_SAMPLE_RATE)
+  return encodeWav(resampled)
 }
 
 /**

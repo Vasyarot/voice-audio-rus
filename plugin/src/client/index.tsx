@@ -3,13 +3,27 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import TYPERT_REMOTE from '../vendor/speech-remote.js'
-import { attachSuppressorAsync, audioBase64, listInputDevices, requestMicrophonePermission, RecorderError, VoiceRecorder } from './audio'
+import { attachSuppressorAsync, audioBase64, listInputDevices, requestMicrophonePermission, RecorderError, VoiceRecorder, wavFromSamples } from './audio'
 import type { AudioDevice } from './audio'
 import { addHistory, clearHistory, exportHistory, removeHistory, useHistory } from './history'
 import { normalizeSettings, resetSettings, updateSettings, useSettings } from './settings'
 import type { Settings } from './settings'
 import { CSS } from './styles'
-import { postProcess } from './text'
+import { joinLiveText, postProcess } from './text'
+import {
+  CLOUD_DEFAULT,
+  fetchModels,
+  isSpeechModel,
+  loadCachedModels,
+  loadCloudDraft,
+  normalizeBaseURL,
+  recommendModel,
+  saveCachedModels,
+  saveCloudConfig,
+  saveCloudDraft,
+  saveCloudKey,
+} from './cloud'
+import type { CloudDraft } from './cloud'
 
 const NS = 'voice-studio'
 const PACKAGE = 'dsh-plugin-voice-studio'
@@ -50,6 +64,15 @@ function IconGear(props: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="12" r="3.2" stroke="currentColor" strokeWidth="1.6" />
       <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M18 6l-1.6 1.6M7.6 16.4 6 18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function IconChevron(props: { size?: number }) {
+  const size = props.size ?? 11
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -270,6 +293,332 @@ function ComboField(props: { value: string; onChange: (value: string) => void; d
   )
 }
 
+// ---------------------------------------------------------------- quick settings
+//
+// The popover next to the microphone changes the two things people touch most —
+// the dictation mode and the recognizer — without leaving the composer. With a
+// cloud provider it also discovers the models the server offers and picks the
+// one that suits dictation best.
+
+function failureText(failure: unknown): string {
+  return failure instanceof Error ? failure.message : String(failure)
+}
+
+/** Well-known dictation models, offered when the server does not expose `/models` to the browser. */
+const SUGGESTED_MODELS = ['whisper-1', 'gpt-4o-transcribe', 'gpt-4o-mini-transcribe', 'whisper-large-v3']
+
+type QuickProps = {
+  ctx: any
+  settings: Settings
+  catalog: Catalog | null
+  refresh: () => Promise<void> | void
+  openSettings: () => void
+  onClose: () => void
+  /** Viewport anchor: the composer panel is fixed, so the row cannot clip it. */
+  style?: React.CSSProperties
+}
+
+export function QuickSettings(props: QuickProps) {
+  const { ctx, settings, catalog, refresh } = props
+  const providers = catalog?.providers ?? []
+  const selectedId = settings.providerId || catalog?.selection.providerId || ''
+  const provider = providers.find((item) => item.id === selectedId)
+  const isCloud = provider?.location === 'cloud'
+  const languages = provider?.languages ?? []
+
+  const boxRef = useRef<HTMLDivElement | null>(null)
+  const closeRef = useRef(props.onClose)
+  closeRef.current = props.onClose
+  const [draft, setDraft] = useState<CloudDraft>(loadCloudDraft)
+  const [keyValue, setKeyValue] = useState('')
+  const [models, setModels] = useState<string[]>(loadCachedModels)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [noticeKind, setNoticeKind] = useState<'ok' | 'error' | 'pending'>('pending')
+  const [busy, setBusy] = useState(false)
+  const pullingRef = useRef(false)
+  const best = useMemo(() => recommendModel(models), [models])
+
+  useEffect(() => {
+    saveCloudDraft(draft)
+  }, [draft])
+
+  useEffect(() => {
+    const onPointer = (event: MouseEvent) => {
+      const box = boxRef.current
+      if (box && event.target instanceof Node && !box.contains(event.target)) closeRef.current()
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeRef.current()
+    }
+    document.addEventListener('mousedown', onPointer, true)
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('mousedown', onPointer, true)
+      document.removeEventListener('keydown', onKey, true)
+    }
+  }, [])
+
+  const setMode = (mode: Settings['mode']) => updateSettings((current) => ({ ...current, mode }))
+
+  const applySelection = async (providerId: string) => {
+    const next = providers.find((item) => item.id === providerId)
+    const language =
+      next && !next.languages.includes(settings.language)
+        ? next.languages.includes('ru')
+          ? 'ru'
+          : next.languages[0] ?? 'auto'
+        : settings.language
+    updateSettings((current) => ({ ...current, providerId, language }))
+    try {
+      const result = await ctx.remote.speech.configure({ providerId, language })
+      if (result?.ok === false) throw new Error(catalogError(result))
+      await refresh()
+      setNoticeKind('ok')
+      setNotice(`Выбрано: ${providerLabel(next ?? provider)}`)
+    } catch (failure) {
+      setNoticeKind('error')
+      setNotice(`Не переключилось: ${failureText(failure)}`)
+    }
+  }
+
+  const applyLanguage = async (language: string) => {
+    updateSettings((current) => ({ ...current, language }))
+    try {
+      const result = await ctx.remote.speech.configure({ language })
+      if (result?.ok === false) throw new Error(catalogError(result))
+      await refresh()
+    } catch (failure) {
+      setNoticeKind('error')
+      setNotice(`Язык не применён: ${failureText(failure)}`)
+    }
+  }
+
+  const persistCloud = async (patch: Record<string, string>, message: string) => {
+    try {
+      await saveCloudConfig(ctx, patch)
+      if (provider) await ctx.remote.speech.prepare(provider.id, undefined).catch(() => {})
+      await refresh()
+      setNoticeKind('ok')
+      setNotice(message)
+    } catch (failure) {
+      setNoticeKind('error')
+      setNotice(`Не сохранилось: ${failureText(failure)}`)
+    }
+  }
+
+  /**
+   * Ask the configured server for its model list, store the key, save the
+   * settings and preselect the best dictation model. Everything after "Base URL
+   * and key are filled in" happens automatically — see the debounced effect.
+   */
+  const pullModels = async () => {
+    if (pullingRef.current) return
+    const base = normalizeBaseURL(draft.baseURL)
+    const key = keyValue.trim()
+    if (!/^https?:\/\//iu.test(base)) {
+      setNoticeKind('error')
+      setNotice('Base URL должен начинаться с http:// или https://')
+      return
+    }
+    if (key === '') {
+      setNoticeKind('pending')
+      setNotice('Введите ключ API — по нему сервер отдаст список моделей.')
+      return
+    }
+    pullingRef.current = true
+    setBusy(true)
+    setNoticeKind('pending')
+    setNotice('Запрашиваю список моделей…')
+    try {
+      const list = await fetchModels(base, key)
+      setModels(list)
+      saveCachedModels(list)
+      const apiKeyEnv = await saveCloudKey(ctx, draft.apiKeyEnv, key)
+      setKeyValue('')
+      const speech = list.filter(isSpeechModel)
+      const chosen = recommendModel(list) ?? (list.includes(draft.model) ? draft.model : list[0] ?? '')
+      const nextDraft: CloudDraft = { baseURL: base, model: chosen || draft.model, apiKeyEnv }
+      setDraft(nextDraft)
+      const patch: Record<string, string> = { baseURL: base, apiKeyEnv }
+      if (nextDraft.model !== '') patch.model = nextDraft.model
+      await saveCloudConfig(ctx, patch)
+      if (provider) await ctx.remote.speech.prepare(provider.id, undefined).catch(() => {})
+      await refresh()
+      setNoticeKind('ok')
+      if (chosen === '') {
+        setNotice(`Моделей: ${list.length}, но явных моделей распознавания нет — выберите вручную.`)
+      } else if (speech.length > 1) {
+        setNotice(`Моделей: ${list.length}. Автоматически выбрана «${chosen}» — лучшая для речи из ${speech.length} подходящих.`)
+      } else {
+        setNotice(`Моделей: ${list.length}. Автоматически выбрана «${chosen}».`)
+      }
+    } catch (failure) {
+      // Servers such as api.openai.com send no CORS headers, so the browser cannot
+      // read `/models`. Keep what the user typed: the Host stores the key and probes
+      // the endpoint itself, and the panel falls back to known dictation models.
+      try {
+        const apiKeyEnv = await saveCloudKey(ctx, draft.apiKeyEnv, key)
+        const base = normalizeBaseURL(draft.baseURL)
+        setDraft({ ...draft, baseURL: base, apiKeyEnv })
+        await saveCloudConfig(ctx, { baseURL: base, apiKeyEnv })
+        setKeyValue('')
+        if (provider) await ctx.remote.speech.prepare(provider.id, undefined).catch(() => {})
+        await refresh()
+        setNoticeKind('error')
+        setNotice(
+          `Список моделей сервер не отдал браузеру (обычно CORS). Адрес и ключ сохранены, хост проверил доступ сам — выберите модель из подсказок ниже.`,
+        )
+      } catch (second) {
+        setNoticeKind('error')
+        setNotice(`Модели не получены: ${failureText(failure)}. Ключ не сохранён: ${failureText(second)}`)
+      }
+    } finally {
+      pullingRef.current = false
+      setBusy(false)
+    }
+  }
+  const pullRef = useRef(pullModels)
+  pullRef.current = pullModels
+
+  // Automatic discovery: as soon as a plausible Base URL and a key are present,
+  // the panel asks for the model list on its own (debounced, once per key entry).
+  useEffect(() => {
+    if (!isCloud) return
+    const base = normalizeBaseURL(draft.baseURL)
+    const key = keyValue.trim()
+    if (!/^https?:\/\//iu.test(base) || key.length < 8) return
+    const timer = window.setTimeout(() => void pullRef.current(), 900)
+    return () => window.clearTimeout(timer)
+  }, [isCloud, draft.baseURL, keyValue])
+
+  const chooseModel = async (model: string) => {
+    setDraft((current) => ({ ...current, model }))
+    await persistCloud({ model }, `Модель «${model}» сохранена.`)
+  }
+
+  return (
+    <div className="vs-quick" ref={boxRef} style={props.style} role="dialog" aria-label="Быстрые настройки голосового ввода">
+      <div className="vs-quick-head">
+        <strong>Голосовой ввод</strong>
+        <button type="button" className="vs-round" aria-label="Закрыть" onClick={props.onClose}>
+          <IconClose />
+        </button>
+      </div>
+      <div className="vs-quick-block">
+        <span className="vs-quick-label">Режим</span>
+        <div className="vs-seg">
+          <button type="button" data-active={settings.mode !== 'live'} onClick={() => setMode('utterance')}>
+            По кнопке
+          </button>
+          <button type="button" data-active={settings.mode === 'live'} onClick={() => setMode('live')}>
+            В реальном времени
+          </button>
+        </div>
+        <p className="vs-hint">
+          {settings.mode === 'live'
+            ? 'Текст появляется в черновике по ходу речи: по паузам и не реже, чем раз в несколько секунд.'
+            : 'Запись целиком: текст вставляется после остановки.'}
+        </p>
+      </div>
+      <div className="vs-quick-block">
+        <span className="vs-quick-label">Модель распознавания</span>
+        <select className="vs-select" value={selectedId} onChange={(event) => void applySelection(event.target.value)}>
+          {providers.length === 0 ? <option value="">Каталог не загружен</option> : null}
+          {providers.map((item) => (
+            <option key={item.id} value={item.id}>
+              {providerLabel(item)} · {statusFor(item)}
+            </option>
+          ))}
+        </select>
+        {languages.length > 1 ? (
+          <select className="vs-select" value={settings.language} onChange={(event) => void applyLanguage(event.target.value)}>
+            {languages.map((code) => (
+              <option key={code} value={code}>
+                {languageLabel(code)}
+              </option>
+            ))}
+          </select>
+        ) : null}
+        <p className="vs-hint" data-status={statusKind(provider)}>
+          <span className="vs-dot" data-status={statusKind(provider)} />
+          {statusFor(provider)}
+        </p>
+      </div>
+      {isCloud ? (
+        <div className="vs-quick-block">
+          <span className="vs-quick-label">Облачная модель</span>
+          <input
+            className="vs-input"
+            value={draft.baseURL}
+            placeholder={CLOUD_DEFAULT.baseURL}
+            onChange={(event) => setDraft((current) => ({ ...current, baseURL: event.target.value }))}
+            onBlur={() => {
+              const base = normalizeBaseURL(draft.baseURL)
+              if (base !== '' && base !== draft.baseURL) setDraft((current) => ({ ...current, baseURL: base }))
+            }}
+          />
+          <input
+            className="vs-input"
+            type="password"
+            autoComplete="off"
+            value={keyValue}
+            placeholder="ключ API (sk-…)"
+            onChange={(event) => setKeyValue(event.target.value)}
+          />
+          <div className="vs-controls">
+            <button type="button" className="vs-btn" data-kind="primary" disabled={busy} onClick={() => void pullModels()}>
+              {busy ? 'Запрашиваю…' : 'Подтянуть модели'}
+            </button>
+            {models.length > 0 ? <span className="vs-hint">в списке {models.length}</span> : null}
+          </div>
+          {models.length > 0 ? (
+            <select className="vs-select" value={draft.model} onChange={(event) => void chooseModel(event.target.value)}>
+              {models.includes(draft.model) ? null : <option value={draft.model}>{draft.model} (сохранена)</option>}
+              {models.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                  {name === best ? ' ★ лучшая для речи' : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <>
+              <input
+                className="vs-input"
+                value={draft.model}
+                placeholder="модель, например whisper-1"
+                onChange={(event) => setDraft((current) => ({ ...current, model: event.target.value }))}
+                onBlur={() => {
+                  const model = draft.model.trim()
+                  if (model !== '') void persistCloud({ model }, 'Модель сохранена.')
+                }}
+              />
+              <div className="vs-controls">
+                {SUGGESTED_MODELS.map((name) => (
+                  <button type="button" className="vs-btn" key={name} onClick={() => void chooseModel(name)}>
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      ) : null}
+      {notice ? (
+        <p className="vs-hint" data-status={noticeKind}>
+          {notice}
+        </p>
+      ) : null}
+      <div className="vs-quick-foot">
+        <button type="button" className="vs-link" onClick={props.openSettings}>
+          Все настройки →
+        </button>
+        <span className="vs-hint">{settings.mode === 'live' ? 'живой текст' : 'по кнопке'}</span>
+      </div>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------- microphone activity
 
 type ActivityProps = {
@@ -283,6 +632,21 @@ type ActivityProps = {
 
 /** Loopback used by the history page to insert into the active draft. */
 let activeDraft: { insertText: (text: string) => boolean } | null = null
+
+/** One live (incremental) dictation session: fragments are cut while recording. */
+type LiveSession = {
+  timer: number
+  stopped: boolean
+  text: string
+  inserted: number
+  fallback: boolean
+  lastTick: number
+  chunkStartedAt: number
+  silentMs: number
+  speechMs: number
+  busy: boolean
+  queue: Promise<void>
+}
 
 function MicActivity(props: ActivityProps) {
   const { sessionId, inputActions, locked, onActiveChange, voiceStudio } = props
@@ -298,6 +662,12 @@ function MicActivity(props: ActivityProps) {
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState('')
   const [seconds, setSeconds] = useState(0)
+  const [live, setLive] = useState(false)
+  const [liveText, setLiveText] = useState('')
+  const [quickOpen, setQuickOpen] = useState(false)
+  const [quickAnchor, setQuickAnchor] = useState<React.CSSProperties | undefined>(undefined)
+  const caretRef = useRef<HTMLButtonElement | null>(null)
+  const liveRef = useRef<LiveSession | null>(null)
   const recorderRef = useRef<VoiceRecorder | null>(null)
   const spanRef = useRef<any>(null)
   const selectionRef = useRef<{ providerId: string; language: string } | null>(null)
@@ -328,6 +698,11 @@ function MicActivity(props: ActivityProps) {
   }, [inputActions])
 
   const cancel = useCallback(() => {
+    const live = liveRef.current
+    liveRef.current = null
+    if (live?.timer) window.clearInterval(live.timer)
+    setLive(false)
+    setLiveText('')
     abortRef.current?.abort()
     abortRef.current = null
     const recorder = recorderRef.current
@@ -339,6 +714,229 @@ function MicActivity(props: ActivityProps) {
     setPending('')
     setSeconds(0)
   }, [])
+
+  // ---- live mode: cut fragments while the microphone is open -----------------
+
+  /** Append one recognised fragment to the draft, inserting only the new characters. */
+  const appendLive = useCallback(
+    (piece: string) => {
+      const state = liveRef.current
+      if (!state) return
+      const next = joinLiveText(state.text, piece)
+      const delta = next.slice(state.inserted)
+      state.text = next
+      setLiveText(next)
+      if (delta === '') return
+      if (state.fallback) {
+        setPending(next)
+        return
+      }
+      let inserted = false
+      try {
+        inserted = Boolean(inputActions.insertText(delta, spanRef.current))
+      } catch {
+        inserted = false
+      }
+      if (inserted) {
+        state.inserted = next.length
+        setPending('')
+      } else {
+        // The draft moved under us: keep the whole session text for a manual insert.
+        state.fallback = true
+        setPending(next)
+      }
+    },
+    [inputActions],
+  )
+
+  /** Transcribe everything captured since the previous cut. */
+  const cutLive = useCallback(async () => {
+    const state = liveRef.current
+    const recorder = recorderRef.current
+    if (!state || !recorder) return
+    const samples = recorder.drainPcm()
+    if (samples.length < recorder.sampleRate * 0.35) return
+    const wav = wavFromSamples(samples, recorder.sampleRate, settingsRef.current)
+    const selectionValue = selectionRef.current ?? catalogRef.current?.selection
+    const abort = new AbortController()
+    abortRef.current = abort
+    try {
+      const result = await ctx.remote.speech.transcribe(
+        {
+          audioBase64: audioBase64(wav),
+          ...(selectionValue ? { providerId: selectionValue.providerId, language: selectionValue.language } : {}),
+        },
+        abort.signal,
+      )
+      if (!result?.ok) throw new Error(catalogError(result))
+      const value = result.value as { text?: string }
+      let piece = postProcess(typeof value?.text === 'string' ? value.text : '', {
+        ...settingsRef.current,
+        text: { ...settingsRef.current.text, autoPunctuation: false },
+      })
+      if (piece !== '' && state.text === '' && settingsRef.current.text.autoPunctuation) {
+        piece = piece.charAt(0).toUpperCase() + piece.slice(1)
+      }
+      if (piece !== '') appendLive(piece)
+    } catch (failure) {
+      if (!abort.signal.aborted && liveRef.current) {
+        setPhase('feedback')
+        setMessage(describeFailure(failure))
+      }
+    } finally {
+      abortRef.current = null
+    }
+  }, [appendLive, ctx])
+
+  /** Serialize cuts: one transcription at a time, fragments are never duplicated. */
+  const requestCut = useCallback(() => {
+    const state = liveRef.current
+    if (!state || state.stopped || state.busy) return
+    state.busy = true
+    state.queue = state.queue
+      .then(() => cutLive())
+      .catch(() => {})
+      .then(() => {
+        state.busy = false
+      })
+  }, [cutLive])
+
+  const tickLive = useCallback(() => {
+    const state = liveRef.current
+    const recorder = recorderRef.current
+    if (!state || !recorder || state.stopped) return
+    const now = performance.now()
+    const delta = Math.max(0, now - state.lastTick)
+    state.lastTick = now
+    const threshold = settingsRef.current.vad.thresholdDb
+    if (recorder.levelDb() > threshold) {
+      state.silentMs = 0
+      state.speechMs += delta
+    } else {
+      state.silentMs += delta
+    }
+    const since = now - state.chunkStartedAt
+    const pauseHit = state.silentMs >= settingsRef.current.live.pauseMs && since >= 900
+    const lengthHit = since >= settingsRef.current.live.chunkSeconds * 1000
+    if (!pauseHit && !lengthHit) return
+    const hasSpeech = state.speechMs >= 250
+    state.chunkStartedAt = now
+    state.silentMs = 0
+    state.speechMs = 0
+    if (hasSpeech) requestCut()
+    else recorder.drainPcm()
+  }, [requestCut])
+  const tickLiveRef = useRef(tickLive)
+  tickLiveRef.current = tickLive
+
+  const startLive = useCallback(async () => {
+    const currentCatalog = catalogRef.current
+    const currentProvider = currentCatalog?.providers.find((item) => item.id === currentCatalog.selection.providerId)
+    if (!currentCatalog || !currentProvider) {
+      setPhase('feedback')
+      setMessage('Распознавание ещё не готово. Откройте настройки плагина.')
+      return
+    }
+    if (!['ready', 'standby', 'waking'].includes(currentProvider.preparation?.phase ?? 'ready')) {
+      setPhase('feedback')
+      setMessage(`Провайдер не готов: ${phaseText(currentProvider)}. Подготовьте модель в настройках.`)
+      return
+    }
+    spanRef.current = inputActions.captureInsertion()
+    selectionRef.current = { providerId: currentProvider.id, language: currentCatalog.selection.language }
+    const recorder = new VoiceRecorder(settingsRef.current)
+    setPending('')
+    setMessage('')
+    setLiveText('')
+    setSeconds(0)
+    setPhase('requesting')
+    try {
+      await recorder.start(true)
+    } catch (failure) {
+      setPhase('feedback')
+      setMessage(describeFailure(failure))
+      return
+    }
+    recorderRef.current = recorder
+    const now = performance.now()
+    liveRef.current = {
+      timer: window.setInterval(() => tickLiveRef.current(), 250),
+      stopped: false,
+      text: '',
+      inserted: 0,
+      fallback: false,
+      lastTick: now,
+      chunkStartedAt: now,
+      silentMs: 0,
+      speechMs: 0,
+      busy: false,
+      queue: Promise.resolve(),
+    }
+    phaseRef.current = 'recording'
+    setLive(true)
+    setPhase('recording')
+  }, [inputActions])
+
+  const finishLive = useCallback(async () => {
+    const state = liveRef.current
+    const recorder = recorderRef.current
+    if (!state || !recorder || state.stopped) return
+    state.stopped = true
+    if (state.timer) window.clearInterval(state.timer)
+    phaseRef.current = 'transcribing'
+    setPhase('transcribing')
+    const elapsed = recorder.elapsedSeconds()
+    state.busy = true
+    state.queue = state.queue.then(async () => {
+      await cutLive()
+      if (settingsRef.current.text.autoPunctuation && state.text !== '' && !/[.!?…]$/u.test(state.text)) {
+        appendLive('.')
+      }
+      await recorder.dispose()
+    })
+    try {
+      await state.queue
+      liveRef.current = null
+      recorderRef.current = null
+      setLive(false)
+      setLiveText('')
+      const text = state.text.trim()
+      if (text === '') {
+        setPhase('feedback')
+        setMessage('Речь не распознана — попробуйте ближе к микрофону.')
+        return
+      }
+      addHistory(
+        {
+          text,
+          seconds: Math.round(elapsed),
+          providerId: selectionRef.current?.providerId ?? '',
+          language: selectionRef.current?.language ?? '',
+          deviceLabel: settingsRef.current.deviceLabel,
+        },
+        settingsRef.current.historyLimit,
+      )
+      if (state.fallback) {
+        setPending(text)
+        setPhase('feedback')
+        setMessage('Черновик изменился — вставьте текст вручную.')
+      } else {
+        setPhase('idle')
+        setMessage('')
+        setPending('')
+      }
+    } catch (failure) {
+      liveRef.current = null
+      recorderRef.current = null
+      setLive(false)
+      setLiveText('')
+      setPhase('feedback')
+      setMessage(describeFailure(failure))
+    } finally {
+      spanRef.current = null
+      void refresh()
+    }
+  }, [appendLive, cutLive, refresh])
 
   const start = useCallback(async () => {
     if (phaseRef.current !== 'idle' || locked) return
@@ -352,6 +950,10 @@ function MicActivity(props: ActivityProps) {
     if (!['ready', 'standby', 'waking'].includes(currentProvider.preparation?.phase ?? 'ready')) {
       setPhase('feedback')
       setMessage(`Провайдер не готов: ${phaseText(currentProvider)}. Подготовьте модель в настройках.`)
+      return
+    }
+    if (settingsRef.current.mode === 'live') {
+      await startLive()
       return
     }
     if (locked) return
@@ -371,9 +973,13 @@ function MicActivity(props: ActivityProps) {
     recorderRef.current = recorder
     setSeconds(0)
     setPhase('recording')
-  }, [inputActions, locked])
+  }, [inputActions, locked, startLive])
 
   const finish = useCallback(async () => {
+    if (liveRef.current) {
+      await finishLive()
+      return
+    }
     const recorder = recorderRef.current
     if (!recorder || phaseRef.current !== 'recording') return
     phaseRef.current = 'transcribing'
@@ -446,7 +1052,7 @@ function MicActivity(props: ActivityProps) {
       spanRef.current = null
       void refresh()
     }
-  }, [ctx, inputActions, refresh])
+  }, [ctx, finishLive, inputActions, refresh])
 
   finishRef.current = () => {
     void finish()
@@ -458,6 +1064,9 @@ function MicActivity(props: ActivityProps) {
   // Meter, silence auto-stop and the hard duration limit.
   useEffect(() => {
     if (phase !== 'recording') return
+    // Live mode inserts text continuously, so the silence auto-stop would cut the
+    // session mid-thought: it stays manual there (with a long hard limit).
+    const liveMode = settingsRef.current.mode === 'live'
     let raf = 0
     let silentMs = 0
     let last = performance.now()
@@ -476,7 +1085,7 @@ function MicActivity(props: ActivityProps) {
         const delta = now - last
         last = now
         const vad = settingsRef.current.vad
-        if (vad.autoStop) {
+        if (vad.autoStop && !liveMode) {
           if (db > vad.thresholdDb) silentMs = 0
           else silentMs += delta
           if (silentMs >= vad.silenceMs) {
@@ -493,7 +1102,7 @@ function MicActivity(props: ActivityProps) {
       const recorder = recorderRef.current
       setSeconds(recorder ? Math.floor(recorder.elapsedSeconds()) : 0)
     }, 200)
-    const maxSeconds = (catalogRef.current?.maxDurationSeconds ?? 120) - 0.6
+    const maxSeconds = liveMode ? 900 : (catalogRef.current?.maxDurationSeconds ?? 120) - 0.6
     const limit = window.setTimeout(() => finishRef.current(), Math.max(1000, maxSeconds * 1000))
     return () => {
       cancelAnimationFrame(raf)
@@ -556,6 +1165,9 @@ function MicActivity(props: ActivityProps) {
 
   const expanded = phase !== 'idle'
   useEffect(() => {
+    if (expanded) setQuickOpen(false)
+  }, [expanded])
+  useEffect(() => {
     onActiveChange?.(expanded)
     return () => onActiveChange?.(false)
   }, [expanded, onActiveChange])
@@ -584,9 +1196,24 @@ function MicActivity(props: ActivityProps) {
     if (pending !== '') void navigator.clipboard?.writeText(pending).catch(() => {})
   }
 
+  const toggleQuick = () => {
+    if (quickOpen) {
+      setQuickOpen(false)
+      return
+    }
+    const rect = caretRef.current?.getBoundingClientRect()
+    if (rect) {
+      setQuickAnchor({
+        bottom: Math.max(8, window.innerHeight - rect.top + 8),
+        right: Math.max(8, window.innerWidth - rect.right),
+      })
+    }
+    setQuickOpen(true)
+  }
+
   if (!expanded) {
     return (
-      <span className="vs-root" style={{ display: 'inline-flex', alignItems: 'center' }}>
+      <span className="vs-root vs-trigger-wrap">
         <button
           type="button"
           className="vs-trigger"
@@ -601,9 +1228,37 @@ function MicActivity(props: ActivityProps) {
               setMessage(speechError ?? 'Провайдер не готов. Подготовьте модель в настройках.')
             }
           }}
+          onContextMenu={(event) => {
+            event.preventDefault()
+            toggleQuick()
+          }}
         >
           <IconMic />
         </button>
+        <button
+          type="button"
+          className="vs-caret"
+          ref={caretRef}
+          data-open={quickOpen}
+          aria-label="Быстрые настройки голосового ввода"
+          aria-expanded={quickOpen}
+          title="Режим и модель — не открывая настройки"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={toggleQuick}
+        >
+          <IconChevron />
+        </button>
+        {quickOpen ? (
+          <QuickSettings
+            ctx={ctx}
+            settings={settings}
+            catalog={catalog}
+            refresh={refresh}
+            openSettings={voiceStudio.openSettings}
+            onClose={() => setQuickOpen(false)}
+            style={quickAnchor}
+          />
+        ) : null}
       </span>
     )
   }
@@ -631,7 +1286,19 @@ function MicActivity(props: ActivityProps) {
               />
             ))}
           </span>
-          <button type="button" className="vs-round" aria-label="Остановить и распознать" onClick={() => finishRef.current()}>
+          {live ? (
+            <span className="vs-live-tag" title={liveText}>
+              <span className="vs-dot" data-status="ok" />
+              {liveText === '' ? 'Слушаю…' : tailText(liveText, 56)}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className="vs-round"
+            aria-label={live ? 'Остановить и оставить текст' : 'Остановить и распознать'}
+            title={live ? 'Остановить: текст уже в черновике' : 'Остановить и распознать'}
+            onClick={() => finishRef.current()}
+          >
             <IconStop />
           </button>
         </>
@@ -690,6 +1357,12 @@ function formatSeconds(value: number): string {
   const minutes = Math.floor(value / 60)
   const seconds = Math.max(0, value % 60)
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+/** Tail of a growing text: the capture row shows the freshest words, not the start. */
+function tailText(value: string, max: number): string {
+  const text = value.replace(/\s+/gu, ' ').trim()
+  return text.length > max ? `…${text.slice(-(max - 1))}` : text
 }
 
 // ---------------------------------------------------------------- settings page
@@ -1014,7 +1687,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
     await refresh()
   }
 
-  const [cloudForm, setCloudForm] = useState({ baseURL: '', model: '', apiKeyEnv: '' })
+  const [cloudForm, setCloudForm] = useState<CloudDraft>(loadCloudDraft)
   const [cloudRevision, setCloudRevision] = useState<number | null>(null)
   const [keyValue, setKeyValue] = useState('')
   const [cloudNotice, setCloudNotice] = useState<string | null>(null)
@@ -1022,29 +1695,10 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
   const [modelsNotice, setModelsNotice] = useState<string | null>(null)
   const [cloudOpen, setCloudOpen] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
-  const cloudDraftKey = 'dsh.voice-studio.cloudDraft'
 
+  // The composer popover writes the same draft key, so both surfaces agree.
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(cloudDraftKey)
-      if (!raw) return
-      const draft = JSON.parse(raw)
-      setCloudForm((current) => ({
-        baseURL: typeof draft.baseURL === 'string' ? draft.baseURL : current.baseURL,
-        model: typeof draft.model === 'string' ? draft.model : current.model,
-        apiKeyEnv: typeof draft.apiKeyEnv === 'string' ? draft.apiKeyEnv : current.apiKeyEnv,
-      }))
-    } catch {
-      /* malformed draft is ignored */
-    }
-  }, [])
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(cloudDraftKey, JSON.stringify(cloudForm))
-    } catch {
-      /* storage is optional */
-    }
+    saveCloudDraft(cloudForm)
   }, [cloudForm])
 
   const saveCloud = async () => {
@@ -1102,21 +1756,13 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
       return
     }
     try {
-      const response = await fetch(`${base}/models`, { headers: { Authorization: `Bearer ${key}` } })
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const payload = await response.json()
-      const raw = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : []
-      const list = raw
-        .map((item: any) => (typeof item === 'string' ? item : item?.id ?? item?.name))
-        .filter((value: any): value is string => typeof value === 'string' && value !== '')
-      if (list.length === 0) throw new Error('сервер вернул пустой список')
+      const list = await fetchModels(base, key)
+      saveCachedModels(list)
       setModelOptions(list)
       if (cloudForm.model.trim() === '') setCloudForm((current) => ({ ...current, model: list[0] }))
       setModelsNotice(`Найдено моделей: ${list.length}`)
     } catch (failure) {
-      setModelsNotice(
-        `Не удалось получить модели: ${failure instanceof Error ? failure.message : String(failure)}. Введите модель вручную.`,
-      )
+      setModelsNotice(`Не удалось получить модели: ${failureText(failure)}. Введите модель вручную — если сервер не отдаёт список браузеру (CORS), это нормально.`)
     }
   }
 
@@ -1328,6 +1974,57 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
           Модель скачивается один раз кнопкой «Скачать все модели»: tiny ≈ 100 МБ (быстро), base ≈ 155 МБ,
           small ≈ 360 МБ (точнее). Для максимального качества можно выбрать облачный провайдер.
         </p>
+      </details>
+      <details className="vs-section" open>
+        <summary><h4>Режим диктовки</h4></summary>
+        <Row
+          label="Как распознавать"
+          hint="«В реальном времени» вставляет текст в черновик по ходу речи: по паузам и не реже, чем раз в несколько секунд."
+        >
+          <div className="vs-seg">
+            <button
+              type="button"
+              data-active={settings.mode !== 'live'}
+              onClick={() => update((current) => ({ ...current, mode: 'utterance' }))}
+            >
+              По кнопке
+            </button>
+            <button
+              type="button"
+              data-active={settings.mode === 'live'}
+              onClick={() => update((current) => ({ ...current, mode: 'live' }))}
+            >
+              В реальном времени
+            </button>
+          </div>
+        </Row>
+        {settings.mode === 'live' ? (
+          <>
+            <Row label="Максимум фразы" hint="Если паузы нет, речь режется на куски не длиннее этого значения.">
+              <Slider
+                value={settings.live.chunkSeconds}
+                min={2}
+                max={15}
+                unit=" с"
+                onChange={(value) => update((current) => ({ ...current, live: { ...current.live, chunkSeconds: value } }))}
+              />
+            </Row>
+            <Row label="Пауза для вставки" hint="Такая пауза считается концом фразы: кусок сразу уходит на распознавание.">
+              <Slider
+                value={settings.live.pauseMs}
+                min={200}
+                max={3000}
+                step={50}
+                unit=" мс"
+                onChange={(value) => update((current) => ({ ...current, live: { ...current.live, pauseMs: value } }))}
+              />
+            </Row>
+            <p className="vs-hint">
+              Режим работает с любым провайдером: локальный Whisper и облако распознают короткие куски. Авто-стоп по
+              тишине здесь выключен — запись останавливается кнопкой, Esc или сочетанием Push-to-talk.
+            </p>
+          </>
+        ) : null}
       </details>
 <details className="vs-section" open>
         <summary><h4>Микрофон</h4></summary>
@@ -1785,6 +2482,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
                 <li>Микрофон: выбранное устройство → «Автоматически».</li>
                 <li>Шумоподавление: RNNoise и его сила, обрезной фильтр, шумовой гейт, фильтры браузера.</li>
                 <li>Обработка звука: входное усиление, АРУ и её пределы, защита от перегрузки, пороги гейта.</li>
+                <li>Режим диктовки: «по кнопке», максимум фразы и пауза для вставки в живом режиме.</li>
                 <li>Тишина и клавиши: авто-стоп по тишине, пауза, порог, Push-to-talk и сочетание клавиш.</li>
                 <li>Текст: авто-пунктуация, удаление слов-заиканий и весь словарь замен.</li>
               </ul>

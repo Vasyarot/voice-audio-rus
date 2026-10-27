@@ -10,6 +10,9 @@ const require = createRequire(import.meta.url)
 const code = await readFile(resolve(here, '../plugin/client.js'), 'utf8')
 
 const storage = new Map()
+// Live mode is persisted before the bundle loads, so the settings page renders its
+// extra sliders during the server-side smoke render.
+storage.set('dsh.voice-studio.settings.v1', JSON.stringify({ mode: 'live', live: { chunkSeconds: 4, pauseMs: 500 } }))
 const elements = []
 const documentStub = {
   hidden: false,
@@ -146,6 +149,9 @@ const micHtml = renderToString(
   }),
 )
 if (!micHtml.includes('aria-label="Голосовой ввод"')) throw new Error('microphone trigger did not render')
+if (!micHtml.includes('aria-label="Быстрые настройки голосового ввода"')) throw new Error('quick settings trigger did not render')
+if (!micHtml.includes('aria-expanded="false"')) throw new Error('quick settings must start closed')
+if (micHtml.includes('Быстрые настройки голосового ввода" aria-expanded="true"')) throw new Error('quick panel opened by default')
 
 const settings = registered.find((item) => item.options?.name === 'plugins.bundle.config')
 const settingsHtml = renderToString(
@@ -153,6 +159,7 @@ const settingsHtml = renderToString(
 )
 const sections = [
   'Модели распознавания речи',
+  'Режим диктовки',
   'Микрофон',
   'Сравнение и история',
   'Шумоподавление',
@@ -174,7 +181,59 @@ if (settingsHtml.includes('Облачный провайдер')) throw new Erro
 if (!settingsHtml.includes('Вернуть настройки по умолчанию')) throw new Error('reset button is missing')
 if (settingsHtml.includes('Да, сбросить')) throw new Error('reset confirmation must stay closed until asked')
 if (settingsHtml.includes('margin:6px 0 12px')) throw new Error('settings rows must not override the shared gap')
+for (const marker of ['В реальном времени', 'По кнопке', 'Максимум фразы', 'Пауза для вставки']) {
+  if (!settingsHtml.includes(marker)) throw new Error(`dictation mode section missing: ${marker}`)
+}
 
 console.log('render smoke passed, settings page bytes:', settingsHtml.length)
+
+// The composer popover renders its own tree: mode switch, provider list and the
+// cloud block with cached models and the recommended one marked.
+storage.set('dsh.voice-studio.cloudModels', JSON.stringify(['whisper-1', 'gpt-4o-transcribe', 'tts-1']))
+const panelSettings = {
+  deviceId: '',
+  deviceLabel: '',
+  mode: 'live',
+  live: { chunkSeconds: 6, pauseMs: 700 },
+  browser: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
+  rnnoise: { enabled: true, mix: 1 },
+  highpass: { enabled: true, hz: 80 },
+  gate: { enabled: true, thresholdDb: -45, holdMs: 250 },
+  agc: { enabled: true, targetDb: -20, maxGainDb: 18 },
+  gainDb: 0,
+  limiter: true,
+  vad: { autoStop: true, silenceMs: 1800, thresholdDb: -42 },
+  ptt: { enabled: false, combo: 'Ctrl+Shift+Space', mode: 'hold' },
+  text: { autoPunctuation: true, removeFillers: false, dictionary: [] },
+  historyLimit: 50,
+  providerId: 'cloud-openai',
+  language: 'ru',
+}
+const panelHtml = renderToString(
+  React.createElement(module.QuickSettings, {
+    ctx,
+    settings: panelSettings,
+    catalog: {
+      providers: [
+        { id: 'whisper-base', name: 'Whisper base', location: 'host-local', languages: ['auto', 'ru'], preparation: { phase: 'ready' } },
+        { id: 'cloud-openai', name: 'Облако · OpenAI', location: 'cloud', languages: ['auto', 'ru', 'en'], preparation: { phase: 'ready' } },
+      ],
+      selection: { providerId: 'cloud-openai', language: 'ru' },
+      maxAudioBytes: 1,
+      maxDurationSeconds: 1,
+    },
+    refresh: () => {},
+    openSettings() {},
+    onClose() {},
+  }),
+)
+for (const marker of ['По кнопке', 'В реальном времени', 'Модель распознавания', 'Облачная модель', 'Подтянуть модели', 'Все настройки']) {
+  if (!panelHtml.includes(marker)) throw new Error(`quick panel missing: ${marker}`)
+}
+if (!panelHtml.includes('★ лучшая для речи')) throw new Error('quick panel must mark the recommended model')
+if (!panelHtml.includes('data-active="true"')) throw new Error('quick panel must show the active mode')
+if (/aria-expanded="true"/.test(micHtml)) throw new Error('microphone must not open the panel by itself')
+
+console.log('quick panel smoke passed, bytes:', panelHtml.length)
 console.log('smoke test passed')
 process.exit(0)
