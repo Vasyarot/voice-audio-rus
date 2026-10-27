@@ -87,6 +87,8 @@
   .install { margin-top: 40px; border: 1px solid #ffffff14; border-radius: 16px; overflow: hidden; animation: rise .8s .1s ease both; }
   .install header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #ffffff08; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
   .install pre { margin: 0; padding: 16px; overflow: auto; font-size: 13px; color: #cfe3ff; background: #0a0c14; }
+  .install .note { margin: 0; padding: 12px 16px; font-size: 12.5px; line-height: 1.5; color: var(--muted); border-top: 1px solid #ffffff0a; }
+  .install .note code { color: #cfe3ff; }
   .copy { border: 1px solid #ffffff22; background: #ffffff10; color: #e8ecf8; border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
   .copy:active { transform: scale(.97); }
 
@@ -150,12 +152,15 @@
   </section>
 
   <section class="install">
-    <header><span>Установка · desktop или web</span><button class="copy" data-copy="dsh plugin --profile desktop add &quot;file:D:\path\to\voice-audio-rus\plugin&quot;&#10;dsh plugin --profile web add &quot;file:D:\path\to\voice-audio-rus\plugin&quot;">Копировать</button></header>
-    <pre><code># настольная версия
-dsh plugin --profile desktop add "file:D:\path\to\voice-audio-rus\plugin"
+    <header><span>Установка одной командой</span><button class="copy" data-copy="git clone https://github.com/Vasyarot/voice-audio-rus &amp;&amp; cd voice-audio-rus&#10;powershell -ExecutionPolicy Bypass -File .\install.ps1    # Windows&#10;./install.sh                                             # macOS / Linux">Копировать</button></header>
+    <pre><code>git clone https://github.com/Vasyarot/voice-audio-rus && cd voice-audio-rus
 
-# web-версия
-dsh plugin --profile web add "file:D:\path\to\voice-audio-rus\plugin"</code></pre>
+# Windows
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+
+# macOS / Linux
+./install.sh</code></pre>
+    <p class="note">Скрипт сам находит <code>dsh</code>, выбирает профиль (<code>desktop</code> или <code>web</code>), ставит пакет ссылкой на эту папку и добавляет бандл в <code>dsh.profile.bundles</code>. Флаги: <code>--profile</code>, <code>--copy</code>, <code>--uninstall</code>, <code>--dry-run</code>.</p>
   </section>
 
   <footer>

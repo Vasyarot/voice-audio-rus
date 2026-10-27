@@ -12,7 +12,7 @@
 
 <p align="center">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-3fb950" />
-  <img alt="version" src="https://img.shields.io/badge/version-0.2.0-2f6bff" />
+  <img alt="version" src="https://img.shields.io/badge/version-0.2.2-2f6bff" />
   <img alt="lang" src="https://img.shields.io/badge/язык-русский%20приоритет-7b3ff2" />
   <img alt="stt" src="https://img.shields.io/badge/STT-Whisper%20%7C%20OpenAI--compatible-0f1115" />
   <img alt="offline" src="https://img.shields.io/badge/offline-yes-3fb950" />
@@ -57,23 +57,51 @@
 
 ## Быстрый старт
 
-Выберите профиль, в котором работаете.
+Одна команда из корня репозитория. Скрипт сам найдёт `dsh`, угадает профиль
+(настольное приложение → `desktop`, иначе `web`), поставит пакет ссылкой на эту папку
+и добавит бандл в `dsh.profile.bundles`.
 
-**Настольная версия (Electron):**
-
-```powershell
-dsh plugin --profile desktop add "file:D:\path\to\voice-audio-rus\plugin"
-```
-
-**Web-версия (`dsh web`):**
+**Windows (PowerShell):**
 
 ```powershell
-dsh plugin --profile web add "file:D:\path\to\voice-audio-rus\plugin"
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+# в PowerShell 7 то же самое: pwsh -File .\install.ps1
 ```
+
+**macOS / Linux:**
+
+```bash
+./install.sh
+```
+
+| PowerShell | shell | Что делает |
+|---|---|---|
+| `-Profile web` | `--profile web` | другой профиль (`desktop`, `web`, свой) |
+| `-Copy` | `--copy` | копировать файлы вместо симлинка (как в релизе) |
+| `-Uninstall` | `--uninstall` | убрать плагин из профиля |
+| `-Dsh <path>` | `--dsh <path>` | явный путь к `dsh` |
+| `-DryRun` | `--dry-run` | показать план и ничего не менять |
 
 Перезапустите DSH (правка клиента подхватывается и по `Ctrl+R`), откройте
-**Плагины → Voice Audio Rus** и нажмите **«Скачать / подготовить»** — загрузка
+**Плагины → Voice Audio Rus** и нажмите **«Скачать все модели»** — загрузка
 модели начнётся с прогресс-баром.
+
+<details>
+<summary>Вручную, без скрипта</summary>
+
+```powershell
+# настольная версия
+dsh plugin --profile desktop add "link:D:\path\to\voice-audio-rus\plugin"
+# web-версия
+dsh plugin --profile web add "link:D:\path\to\voice-audio-rus\plugin"
+```
+
+Затем убедитесь, что имя `dsh-plugin-voice-studio` есть в `dsh.profile.bundles`
+в `~/.dsh/profiles/<профиль>/package.json` (страница **Plugins** делает это сама,
+ручной `dsh plugin add` — нет). Для macOS/Linux путь указывается в POSIX-виде:
+`link:/Users/you/voice-audio-rus/plugin`.
+
+</details>
 
 ## Локальные модели
 
