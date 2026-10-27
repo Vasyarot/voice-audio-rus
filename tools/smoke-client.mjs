@@ -161,8 +161,8 @@ if (!micHtml.includes('aria-haspopup="menu"')) throw new Error('microphone must 
 if (!micHtml.includes('aria-label="Режим: в реальном времени"')) throw new Error('the mode badge must show the live mode')
 if (!micHtml.includes('aria-expanded="false"')) throw new Error('quick menu must start closed')
 if (micHtml.includes('aria-expanded="true"')) throw new Error('quick menu opened by default')
-if (!micHtml.includes('удержание — быстрое меню')) throw new Error('the trigger must document the hold gesture')
-if (!micHtml.includes('правый клик — настройки')) throw new Error('the trigger must document the right-click settings')
+if (!micHtml.includes('удержание — выбор режима')) throw new Error('the trigger must document the hold gesture')
+if (!micHtml.includes('правый клик — быстрые настройки')) throw new Error('the trigger must document the right-click settings')
 
 const settings = registered.find((item) => item.options?.name === 'plugins.bundle.config')
 const settingsHtml = renderToString(
@@ -198,8 +198,8 @@ for (const marker of ['В реальном времени', 'По кнопке',
 
 console.log('render smoke passed, settings page bytes:', settingsHtml.length)
 
-// The composer popover renders its own tree: mode switch, provider list and the
-// cloud block with cached models and the recommended one marked.
+// The composer popover renders its own tree: provider list, microphone and the
+// cloud block with cached models; the mode itself lives in the hold menu.
 storage.set('dsh.voice-studio.cloudModels', JSON.stringify(['whisper-1', 'gpt-4o-transcribe', 'tts-1']))
 const panelSettings = {
   deviceId: '',
@@ -219,33 +219,49 @@ const panelSettings = {
   providerId: 'cloud-openai',
   language: 'ru',
 }
+const catalog = {
+  providers: [
+    { id: 'whisper-base', name: 'Whisper base', location: 'host-local', languages: ['auto', 'ru'], preparation: { phase: 'ready' } },
+    { id: 'cloud-openai', name: 'Облако · OpenAI', location: 'cloud', languages: ['auto', 'ru', 'en'], preparation: { phase: 'ready' } },
+  ],
+  selection: { providerId: 'cloud-openai', language: 'ru' },
+  maxAudioBytes: 1,
+  maxDurationSeconds: 1,
+}
 const panelHtml = renderToString(
   React.createElement(module.QuickSettings, {
     ctx,
     settings: panelSettings,
-    catalog: {
-      providers: [
-        { id: 'whisper-base', name: 'Whisper base', location: 'host-local', languages: ['auto', 'ru'], preparation: { phase: 'ready' } },
-        { id: 'cloud-openai', name: 'Облако · OpenAI', location: 'cloud', languages: ['auto', 'ru', 'en'], preparation: { phase: 'ready' } },
-      ],
-      selection: { providerId: 'cloud-openai', language: 'ru' },
-      maxAudioBytes: 1,
-      maxDurationSeconds: 1,
-    },
+    catalog,
     refresh: () => {},
     openSettings() {},
-    onStart() {},
     onClose() {},
   }),
 )
-for (const marker of ['По кнопке', 'В реальном времени', 'Записать', 'Модель распознавания', 'Облачная модель', 'Подтянуть модели', 'Все настройки']) {
+for (const marker of ['Модель распознавания', 'Микрофон', 'Облачная модель', 'Подтянуть модели', 'Все настройки']) {
   if (!panelHtml.includes(marker)) throw new Error(`quick panel missing: ${marker}`)
 }
+for (const duplicated of ['По кнопке', 'В реальном времени', 'Записать', 'Режим']) {
+  if (panelHtml.includes(duplicated)) throw new Error(`quick panel duplicates the mode control: ${duplicated}`)
+}
 if (!panelHtml.includes('★ лучшая для речи')) throw new Error('quick panel must mark the recommended model')
-if (!panelHtml.includes('data-active="true"')) throw new Error('quick panel must show the active mode')
+
+// The hold menu owns the mode choice only.
+const modeHtml = renderToString(
+  React.createElement(module.ModeMenu, {
+    settings: panelSettings,
+    onChoose() {},
+    onClose() {},
+  }),
+)
+for (const marker of ['Режим диктовки', 'По кнопке', 'В реальном времени', 'role="menuitemradio"', 'остановка вручную']) {
+  if (!modeHtml.includes(marker)) throw new Error(`mode menu missing: ${marker}`)
+}
+if (!modeHtml.includes('aria-checked="true"')) throw new Error('mode menu must mark the current mode')
+if (modeHtml.includes('Записать')) throw new Error('mode menu must not start a capture')
 if (/aria-expanded="true"/.test(micHtml)) throw new Error('microphone must not open the menu by itself')
 if (micHtml.includes('>Вставить<')) throw new Error('the composer must not ask for a manual insert')
 
-console.log('quick panel smoke passed, bytes:', panelHtml.length)
+console.log('quick panel smoke passed, bytes:', panelHtml.length, 'mode menu bytes:', modeHtml.length)
 console.log('smoke test passed')
 process.exit(0)

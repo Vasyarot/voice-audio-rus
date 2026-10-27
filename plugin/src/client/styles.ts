@@ -69,8 +69,16 @@ export const CSS = `
 .vs-quick{position:fixed;right:24px;bottom:80px;z-index:70;display:flex;flex-direction:column;gap:10px;width:min(340px,84vw);max-height:66vh;overflow:auto;padding:12px;border-radius:12px;border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);background:var(--dsw-alias-bg-module-platform, #1b1d22);color:var(--dsw-alias-label-primary, inherit);box-shadow:0 18px 48px #00000066;font-size:13px}
 .vs-quick-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .vs-quick-head strong{font-size:13.5px}
-.vs-quick-actions{display:flex;gap:8px}
-.vs-quick-actions .vs-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.vs-mode-menu{width:min(280px,84vw)}
+.vs-menu-item{display:flex;align-items:center;gap:9px;width:100%;padding:8px;border-radius:8px;border:.5px solid var(--dsw-alias-border-l1, #ffffff14);background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.vs-menu-item:hover{background:var(--dsw-alias-interactive-bg-hover, #ffffff14)}
+.vs-menu-item[data-active="true"]{border-color:#2f6bff88;background:var(--dsw-alias-interactive-bg-active, #ffffff24)}
+.vs-menu-icon{flex:none;display:inline-flex;color:var(--dsw-alias-label-secondary, #999)}
+.vs-menu-item[data-active="true"] .vs-menu-icon{color:var(--dsw-alias-brand-primary, #2f6bff)}
+.vs-menu-text{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}
+.vs-menu-text strong{font-size:13px;font-weight:600}
+.vs-menu-text span{font-size:11.5px;color:var(--dsw-alias-label-tertiary, #888)}
+.vs-menu-check{flex:none;color:var(--dsw-alias-brand-primary, #2f6bff);font-size:13px}
 .vs-quick-block{display:flex;flex-direction:column;gap:6px}
 .vs-quick-label{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary, #999)}
 .vs-quick-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:.5px solid var(--dsw-alias-border-l1, #ffffff14);padding-top:8px}

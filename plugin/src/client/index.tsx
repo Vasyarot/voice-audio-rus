@@ -342,8 +342,6 @@ type QuickProps = {
   refresh: () => Promise<void> | void
   openSettings: () => void
   onClose: () => void
-  /** Start a capture right from the menu, switching the mode first. */
-  onStart: (mode: Settings['mode']) => void
   /** Viewport anchor: the composer panel is fixed, so the row cannot clip it. */
   style?: React.CSSProperties
 }
@@ -365,8 +363,21 @@ export function QuickSettings(props: QuickProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const [noticeKind, setNoticeKind] = useState<'ok' | 'error' | 'pending'>('pending')
   const [busy, setBusy] = useState(false)
+  const [devices, setDevices] = useState<AudioDevice[]>([])
   const pullingRef = useRef(false)
   const best = useMemo(() => recommendModel(models), [models])
+
+  useEffect(() => {
+    let alive = true
+    listInputDevices()
+      .then((list) => {
+        if (alive) setDevices(list)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
 
   useEffect(() => {
     saveCloudDraft(draft)
@@ -387,8 +398,6 @@ export function QuickSettings(props: QuickProps) {
       document.removeEventListener('keydown', onKey, true)
     }
   }, [])
-
-  const setMode = (mode: Settings['mode']) => updateSettings((current) => ({ ...current, mode }))
 
   const applySelection = async (providerId: string) => {
     const next = providers.find((item) => item.id === providerId)
@@ -529,36 +538,10 @@ export function QuickSettings(props: QuickProps) {
   return (
     <div className="vs-quick" ref={boxRef} style={props.style} role="dialog" aria-label="Быстрые настройки голосового ввода">
       <div className="vs-quick-head">
-        <strong>Голосовой ввод</strong>
+        <strong>Быстрые настройки</strong>
         <button type="button" className="vs-round" aria-label="Закрыть" onClick={props.onClose}>
           <IconClose />
         </button>
-      </div>
-      <div className="vs-quick-actions">
-        <button type="button" className="vs-btn" data-kind="primary" onClick={() => props.onStart('utterance')}>
-          <IconRecordDot size={12} />
-          Записать
-        </button>
-        <button type="button" className="vs-btn" onClick={() => props.onStart('live')}>
-          <IconLiveBars size={12} />
-          В реальном времени
-        </button>
-      </div>
-      <div className="vs-quick-block">
-        <span className="vs-quick-label">Режим</span>
-        <div className="vs-seg">
-          <button type="button" data-active={settings.mode !== 'live'} onClick={() => setMode('utterance')}>
-            По кнопке
-          </button>
-          <button type="button" data-active={settings.mode === 'live'} onClick={() => setMode('live')}>
-            В реальном времени
-          </button>
-        </div>
-        <p className="vs-hint">
-          {settings.mode === 'live'
-            ? 'Текст дописывается в конец черновика сразу после каждых ~1.5 с речи — без кнопок «Вставить».'
-            : 'Запись целиком: текст вставляется сам после остановки.'}
-        </p>
       </div>
       <div className="vs-quick-block">
         <span className="vs-quick-label">Модель распознавания</span>
@@ -583,6 +566,28 @@ export function QuickSettings(props: QuickProps) {
           <span className="vs-dot" data-status={statusKind(provider)} />
           {statusFor(provider)}
         </p>
+      </div>
+      <div className="vs-quick-block">
+        <span className="vs-quick-label">Микрофон</span>
+        <select
+          className="vs-select"
+          value={settings.deviceId}
+          onChange={(event) => {
+            const id = event.target.value
+            const found = devices.find((device) => device.id === id)
+            updateSettings((current) => ({ ...current, deviceId: id, deviceLabel: found?.label ?? '' }))
+          }}
+        >
+          <option value="">Автоматически</option>
+          {devices.map((device) => (
+            <option key={device.id} value={device.id}>
+              {device.label}
+            </option>
+          ))}
+        </select>
+        {devices.length === 0 ? (
+          <p className="vs-hint">Имена появятся после разрешения доступа к микрофону.</p>
+        ) : null}
       </div>
       {isCloud ? (
         <div className="vs-quick-block">
@@ -653,7 +658,80 @@ export function QuickSettings(props: QuickProps) {
         <button type="button" className="vs-link" onClick={props.openSettings}>
           Все настройки →
         </button>
-        <span className="vs-hint">{settings.mode === 'live' ? 'живой текст' : 'по кнопке'}</span>
+      </div>
+    </div>
+  )
+}
+
+type ModeProps = {
+  settings: Settings
+  onChoose: (mode: Settings['mode']) => void
+  onClose: () => void
+  style?: React.CSSProperties
+}
+
+/** Hold-the-microphone menu: only the dictation mode, nothing duplicated. */
+export function ModeMenu(props: ModeProps) {
+  const boxRef = useRef<HTMLDivElement | null>(null)
+  const closeRef = useRef(props.onClose)
+  closeRef.current = props.onClose
+
+  useEffect(() => {
+    const onPointer = (event: MouseEvent) => {
+      const box = boxRef.current
+      if (box && event.target instanceof Node && !box.contains(event.target)) closeRef.current()
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeRef.current()
+    }
+    document.addEventListener('mousedown', onPointer, true)
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('mousedown', onPointer, true)
+      document.removeEventListener('keydown', onKey, true)
+    }
+  }, [])
+
+  const options: Array<{ mode: Settings['mode']; title: string; hint: string }> = [
+    { mode: 'utterance', title: 'По кнопке', hint: 'запись целиком, текст после остановки' },
+    { mode: 'live', title: 'В реальном времени', hint: 'текст дописывается по ходу речи' },
+  ]
+  const stopHint =
+    props.settings.mode === 'live' || !props.settings.vad.autoStop
+      ? 'остановка вручную'
+      : `авто-стоп после ${secondsText(props.settings.vad.silenceMs / 1000)} с тишины`
+
+  return (
+    <div className="vs-quick vs-mode-menu" ref={boxRef} style={props.style} role="menu" aria-label="Режим диктовки">
+      <div className="vs-quick-head">
+        <strong>Режим диктовки</strong>
+        <button type="button" className="vs-round" aria-label="Закрыть" onClick={props.onClose}>
+          <IconClose />
+        </button>
+      </div>
+      {options.map((option) => {
+        const active = props.settings.mode === option.mode
+        return (
+          <button
+            type="button"
+            key={option.mode}
+            role="menuitemradio"
+            aria-checked={active}
+            className="vs-menu-item"
+            data-active={active}
+            onClick={() => props.onChoose(option.mode)}
+          >
+            <span className="vs-menu-icon">{option.mode === 'live' ? <IconLiveBars size={14} /> : <IconRecordDot size={14} />}</span>
+            <span className="vs-menu-text">
+              <strong>{option.title}</strong>
+              <span>{option.hint}</span>
+            </span>
+            {active ? <span className="vs-menu-check" aria-hidden="true">✓</span> : null}
+          </button>
+        )
+      })}
+      <div className="vs-quick-foot">
+        <span className="vs-hint">{stopHint}</span>
       </div>
     </div>
   )
@@ -700,7 +778,7 @@ function MicActivity(props: ActivityProps) {
   const [live, setLive] = useState(false)
   /** Milliseconds of the current silence run, shown while VAD can stop the capture. */
   const [silence, setSilence] = useState(0)
-  const [quickOpen, setQuickOpen] = useState(false)
+  const [menu, setMenu] = useState<'none' | 'mode' | 'settings'>('none')
   const [quickAnchor, setQuickAnchor] = useState<React.CSSProperties | undefined>(undefined)
   const liveRef = useRef<LiveSession | null>(null)
   const writerRef = useRef<ReturnType<typeof createLiveWriter> | null>(null)
@@ -952,7 +1030,7 @@ function MicActivity(props: ActivityProps) {
     }
   }, [appendLive, cutLive, refresh])
 
-  const start = useCallback(async (modeOverride?: Settings['mode']) => {
+  const start = useCallback(async () => {
     if (phaseRef.current !== 'idle' || locked) return
     // A previous session's writer must not append its leftovers into the new one.
     writerRef.current?.cancel()
@@ -969,8 +1047,7 @@ function MicActivity(props: ActivityProps) {
       setMessage(`Провайдер не готов: ${phaseText(currentProvider)}. Подготовьте модель в настройках.`)
       return
     }
-    const mode = modeOverride ?? settingsRef.current.mode
-    if (mode === 'live') {
+    if (settingsRef.current.mode === 'live') {
       await startLive()
       return
     }
@@ -990,16 +1067,6 @@ function MicActivity(props: ActivityProps) {
     setSeconds(0)
     setPhase('recording')
   }, [inputActions, locked, startLive])
-
-  /** Menu shortcut: switch the mode and start that kind of capture right away. */
-  const startWithMode = useCallback(
-    (mode: Settings['mode']) => {
-      updateSettings((current) => ({ ...current, mode }))
-      setQuickOpen(false)
-      void start(mode)
-    },
-    [start],
-  )
 
   const finish = useCallback(async () => {
     if (liveRef.current) {
@@ -1176,7 +1243,7 @@ function MicActivity(props: ActivityProps) {
 
   const expanded = phase !== 'idle'
   useEffect(() => {
-    if (expanded) setQuickOpen(false)
+    if (expanded) setMenu('none')
   }, [expanded])
   useEffect(() => {
     onActiveChange?.(expanded)
@@ -1189,10 +1256,10 @@ function MicActivity(props: ActivityProps) {
     if (phaseRef.current !== 'recording') setPhase('idle')
   }, [sessionId])
 
-  /** Open / close the menu; with coordinates it grows up-left from the click. */
-  const openQuick = (x?: number, y?: number) => {
-    if (quickOpen) {
-      setQuickOpen(false)
+  /** Open / close one of the two menus; with coordinates it grows up-left from the click. */
+  const openMenu = (kind: 'mode' | 'settings', x?: number, y?: number) => {
+    if (menu === kind) {
+      setMenu('none')
       return
     }
     if (typeof x === 'number' && typeof y === 'number') {
@@ -1201,22 +1268,26 @@ function MicActivity(props: ActivityProps) {
         bottom: Math.max(8, window.innerHeight - y),
       })
     }
-    setQuickOpen(true)
+    setMenu(kind)
   }
 
-  const openQuickFromElement = (element: Element) => {
+  const openMenuFromElement = (kind: 'mode' | 'settings', element: Element) => {
     const rect = element.getBoundingClientRect()
-    openQuick(rect.right, rect.top + rect.height / 2)
+    openMenu(kind, rect.right, rect.top + rect.height / 2)
   }
 
-  // Holding the microphone reveals the menu without recording: a quick choice
-  // between "record" and "live". A short click still starts the current mode.
+  const chooseMode = useCallback((mode: Settings['mode']) => {
+    updateSettings((current) => ({ ...current, mode }))
+    setMenu('none')
+  }, [])
+
+  // Holding the microphone offers only the mode choice; a short click records.
   const beginHold = (element: Element) => {
     holdFiredRef.current = false
     window.clearTimeout(holdTimerRef.current)
     holdTimerRef.current = window.setTimeout(() => {
       holdFiredRef.current = true
-      openQuickFromElement(element)
+      openMenuFromElement('mode', element)
     }, 420)
   }
   const endHold = () => window.clearTimeout(holdTimerRef.current)
@@ -1230,12 +1301,12 @@ function MicActivity(props: ActivityProps) {
           className="vs-trigger"
           title={
             usable
-              ? 'Голосовой ввод · удержание — быстрое меню, правый клик — настройки'
-              : 'Голосовой ввод: настройте распознавание · удержание — быстрое меню, правый клик — настройки'
+              ? 'Голосовой ввод · удержание — выбор режима, правый клик — быстрые настройки'
+              : 'Голосовой ввод: настройте распознавание · удержание — выбор режима, правый клик — быстрые настройки'
           }
           aria-label="Голосовой ввод"
           aria-haspopup="menu"
-          aria-expanded={quickOpen}
+          aria-expanded={menu !== 'none'}
           disabled={Boolean(locked)}
           onMouseDown={(event) => event.preventDefault()}
           onPointerDown={(event) => {
@@ -1259,8 +1330,7 @@ function MicActivity(props: ActivityProps) {
             event.preventDefault()
             endHold()
             holdFiredRef.current = false
-            setQuickOpen(false)
-            voiceStudio.openSettings()
+            openMenu('settings', event.clientX, event.clientY)
           }}
         >
           <IconMic />
@@ -1273,19 +1343,26 @@ function MicActivity(props: ActivityProps) {
           aria-haspopup="menu"
           title={modeTitle(settings)}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={(event) => openQuickFromElement(event.currentTarget)}
+          onClick={(event) => openMenuFromElement('mode', event.currentTarget)}
         >
           {settings.mode === 'live' ? <IconLiveBars /> : <IconRecordDot />}
         </button>
-        {quickOpen ? (
+        {menu === 'mode' ? (
+          <ModeMenu
+            settings={settings}
+            onChoose={chooseMode}
+            onClose={() => setMenu('none')}
+            style={quickAnchor}
+          />
+        ) : null}
+        {menu === 'settings' ? (
           <QuickSettings
             ctx={ctx}
             settings={settings}
             catalog={catalog}
             refresh={refresh}
             openSettings={voiceStudio.openSettings}
-            onStart={startWithMode}
-            onClose={() => setQuickOpen(false)}
+            onClose={() => setMenu('none')}
             style={quickAnchor}
           />
         ) : null}

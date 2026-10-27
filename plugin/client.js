@@ -34,6 +34,7 @@ var __toBinary = /* @__PURE__ */ (() => {
 // plugin/src/client/index.tsx
 var index_exports = {};
 __export(index_exports, {
+  ModeMenu: () => ModeMenu,
   QuickSettings: () => QuickSettings,
   apply: () => apply,
   inject: () => inject
@@ -1263,8 +1264,16 @@ var CSS = `
 .vs-quick{position:fixed;right:24px;bottom:80px;z-index:70;display:flex;flex-direction:column;gap:10px;width:min(340px,84vw);max-height:66vh;overflow:auto;padding:12px;border-radius:12px;border:.5px solid var(--dsw-alias-border-l2, #ffffff1f);background:var(--dsw-alias-bg-module-platform, #1b1d22);color:var(--dsw-alias-label-primary, inherit);box-shadow:0 18px 48px #00000066;font-size:13px}
 .vs-quick-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .vs-quick-head strong{font-size:13.5px}
-.vs-quick-actions{display:flex;gap:8px}
-.vs-quick-actions .vs-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.vs-mode-menu{width:min(280px,84vw)}
+.vs-menu-item{display:flex;align-items:center;gap:9px;width:100%;padding:8px;border-radius:8px;border:.5px solid var(--dsw-alias-border-l1, #ffffff14);background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.vs-menu-item:hover{background:var(--dsw-alias-interactive-bg-hover, #ffffff14)}
+.vs-menu-item[data-active="true"]{border-color:#2f6bff88;background:var(--dsw-alias-interactive-bg-active, #ffffff24)}
+.vs-menu-icon{flex:none;display:inline-flex;color:var(--dsw-alias-label-secondary, #999)}
+.vs-menu-item[data-active="true"] .vs-menu-icon{color:var(--dsw-alias-brand-primary, #2f6bff)}
+.vs-menu-text{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}
+.vs-menu-text strong{font-size:13px;font-weight:600}
+.vs-menu-text span{font-size:11.5px;color:var(--dsw-alias-label-tertiary, #888)}
+.vs-menu-check{flex:none;color:var(--dsw-alias-brand-primary, #2f6bff);font-size:13px}
 .vs-quick-block{display:flex;flex-direction:column;gap:6px}
 .vs-quick-label{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary, #999)}
 .vs-quick-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:.5px solid var(--dsw-alias-border-l1, #ffffff14);padding-top:8px}
@@ -1765,8 +1774,19 @@ function QuickSettings(props) {
   const [notice, setNotice] = (0, import_react2.useState)(null);
   const [noticeKind, setNoticeKind] = (0, import_react2.useState)("pending");
   const [busy, setBusy] = (0, import_react2.useState)(false);
+  const [devices, setDevices] = (0, import_react2.useState)([]);
   const pullingRef = (0, import_react2.useRef)(false);
   const best = (0, import_react2.useMemo)(() => recommendModel(models), [models]);
+  (0, import_react2.useEffect)(() => {
+    let alive = true;
+    listInputDevices().then((list) => {
+      if (alive) setDevices(list);
+    }).catch(() => {
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   (0, import_react2.useEffect)(() => {
     saveCloudDraft(draft);
   }, [draft]);
@@ -1785,7 +1805,6 @@ function QuickSettings(props) {
       document.removeEventListener("keydown", onKey, true);
     };
   }, []);
-  const setMode = (mode) => updateSettings((current2) => ({ ...current2, mode }));
   const applySelection = async (providerId) => {
     const next = providers.find((item) => item.id === providerId);
     const language = next && !next.languages.includes(settings.language) ? next.languages.includes("ru") ? "ru" : next.languages[0] ?? "auto" : settings.language;
@@ -1906,26 +1925,8 @@ function QuickSettings(props) {
   };
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick", ref: boxRef, style: props.style, role: "dialog", "aria-label": "\u0411\u044B\u0441\u0442\u0440\u044B\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0433\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0433\u043E \u0432\u0432\u043E\u0434\u0430", children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-head", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "\u0411\u044B\u0441\u0442\u0440\u044B\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-round", "aria-label": "\u0417\u0430\u043A\u0440\u044B\u0442\u044C", onClick: props.onClose, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconClose, {}) })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-actions", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { type: "button", className: "vs-btn", "data-kind": "primary", onClick: () => props.onStart("utterance"), children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconRecordDot, { size: 12 }),
-        "\u0417\u0430\u043F\u0438\u0441\u0430\u0442\u044C"
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", { type: "button", className: "vs-btn", onClick: () => props.onStart("live"), children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconLiveBars, { size: 12 }),
-        "\u0412 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u043C \u0432\u0440\u0435\u043C\u0435\u043D\u0438"
-      ] })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-block", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-quick-label", children: "\u0420\u0435\u0436\u0438\u043C" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-seg", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", "data-active": settings.mode !== "live", onClick: () => setMode("utterance"), children: "\u041F\u043E \u043A\u043D\u043E\u043F\u043A\u0435" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", "data-active": settings.mode === "live", onClick: () => setMode("live"), children: "\u0412 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u043C \u0432\u0440\u0435\u043C\u0435\u043D\u0438" })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: settings.mode === "live" ? "\u0422\u0435\u043A\u0441\u0442 \u0434\u043E\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u0432 \u043A\u043E\u043D\u0435\u0446 \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A\u0430 \u0441\u0440\u0430\u0437\u0443 \u043F\u043E\u0441\u043B\u0435 \u043A\u0430\u0436\u0434\u044B\u0445 ~1.5 \u0441 \u0440\u0435\u0447\u0438 \u2014 \u0431\u0435\u0437 \u043A\u043D\u043E\u043F\u043E\u043A \xAB\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C\xBB." : "\u0417\u0430\u043F\u0438\u0441\u044C \u0446\u0435\u043B\u0438\u043A\u043E\u043C: \u0442\u0435\u043A\u0441\u0442 \u0432\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0441\u0430\u043C \u043F\u043E\u0441\u043B\u0435 \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438." })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-block", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-quick-label", children: "\u041C\u043E\u0434\u0435\u043B\u044C \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u044F" }),
@@ -1942,6 +1943,26 @@ function QuickSettings(props) {
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-dot", "data-status": statusKind(provider) }),
         statusFor(provider)
       ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-block", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-quick-label", children: "\u041C\u0438\u043A\u0440\u043E\u0444\u043E\u043D" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+        "select",
+        {
+          className: "vs-select",
+          value: settings.deviceId,
+          onChange: (event) => {
+            const id = event.target.value;
+            const found = devices.find((device) => device.id === id);
+            updateSettings((current2) => ({ ...current2, deviceId: id, deviceLabel: found?.label ?? "" }));
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "", children: "\u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438" }),
+            devices.map((device) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: device.id, children: device.label }, device.id))
+          ]
+        }
+      ),
+      devices.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u0418\u043C\u0435\u043D\u0430 \u043F\u043E\u044F\u0432\u044F\u0442\u0441\u044F \u043F\u043E\u0441\u043B\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u0438\u044F \u0434\u043E\u0441\u0442\u0443\u043F\u0430 \u043A \u043C\u0438\u043A\u0440\u043E\u0444\u043E\u043D\u0443." }) : null
     ] }),
     isCloud ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-block", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-quick-label", children: "\u041E\u0431\u043B\u0430\u0447\u043D\u0430\u044F \u043C\u043E\u0434\u0435\u043B\u044C" }),
@@ -2003,10 +2024,62 @@ function QuickSettings(props) {
       ] })
     ] }) : null,
     notice ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", "data-status": noticeKind, children: notice }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-foot", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-link", onClick: props.openSettings, children: "\u0412\u0441\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u2192" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-hint", children: settings.mode === "live" ? "\u0436\u0438\u0432\u043E\u0439 \u0442\u0435\u043A\u0441\u0442" : "\u043F\u043E \u043A\u043D\u043E\u043F\u043A\u0435" })
-    ] })
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-quick-foot", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-link", onClick: props.openSettings, children: "\u0412\u0441\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u2192" }) })
+  ] });
+}
+function ModeMenu(props) {
+  const boxRef = (0, import_react2.useRef)(null);
+  const closeRef = (0, import_react2.useRef)(props.onClose);
+  closeRef.current = props.onClose;
+  (0, import_react2.useEffect)(() => {
+    const onPointer = (event) => {
+      const box = boxRef.current;
+      if (box && event.target instanceof Node && !box.contains(event.target)) closeRef.current();
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") closeRef.current();
+    };
+    document.addEventListener("mousedown", onPointer, true);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onPointer, true);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, []);
+  const options = [
+    { mode: "utterance", title: "\u041F\u043E \u043A\u043D\u043E\u043F\u043A\u0435", hint: "\u0437\u0430\u043F\u0438\u0441\u044C \u0446\u0435\u043B\u0438\u043A\u043E\u043C, \u0442\u0435\u043A\u0441\u0442 \u043F\u043E\u0441\u043B\u0435 \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438" },
+    { mode: "live", title: "\u0412 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u043C \u0432\u0440\u0435\u043C\u0435\u043D\u0438", hint: "\u0442\u0435\u043A\u0441\u0442 \u0434\u043E\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043F\u043E \u0445\u043E\u0434\u0443 \u0440\u0435\u0447\u0438" }
+  ];
+  const stopHint = props.settings.mode === "live" || !props.settings.vad.autoStop ? "\u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0430 \u0432\u0440\u0443\u0447\u043D\u0443\u044E" : `\u0430\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E\u0441\u043B\u0435 ${secondsText(props.settings.vad.silenceMs / 1e3)} \u0441 \u0442\u0438\u0448\u0438\u043D\u044B`;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick vs-mode-menu", ref: boxRef, style: props.style, role: "menu", "aria-label": "\u0420\u0435\u0436\u0438\u043C \u0434\u0438\u043A\u0442\u043E\u0432\u043A\u0438", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-head", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "\u0420\u0435\u0436\u0438\u043C \u0434\u0438\u043A\u0442\u043E\u0432\u043A\u0438" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", className: "vs-round", "aria-label": "\u0417\u0430\u043A\u0440\u044B\u0442\u044C", onClick: props.onClose, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconClose, {}) })
+    ] }),
+    options.map((option) => {
+      const active = props.settings.mode === option.mode;
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+        "button",
+        {
+          type: "button",
+          role: "menuitemradio",
+          "aria-checked": active,
+          className: "vs-menu-item",
+          "data-active": active,
+          onClick: () => props.onChoose(option.mode),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-menu-icon", children: option.mode === "live" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconLiveBars, { size: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconRecordDot, { size: 14 }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-menu-text", children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: option.title }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: option.hint })
+            ] }),
+            active ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-menu-check", "aria-hidden": "true", children: "\u2713" }) : null
+          ]
+        },
+        option.mode
+      );
+    }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vs-quick-foot", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-hint", children: stopHint }) })
   ] });
 }
 function MicActivity(props) {
@@ -2023,7 +2096,7 @@ function MicActivity(props) {
   const [seconds, setSeconds] = (0, import_react2.useState)(0);
   const [live, setLive] = (0, import_react2.useState)(false);
   const [silence, setSilence] = (0, import_react2.useState)(0);
-  const [quickOpen, setQuickOpen] = (0, import_react2.useState)(false);
+  const [menu, setMenu] = (0, import_react2.useState)("none");
   const [quickAnchor, setQuickAnchor] = (0, import_react2.useState)(void 0);
   const liveRef = (0, import_react2.useRef)(null);
   const writerRef = (0, import_react2.useRef)(null);
@@ -2253,7 +2326,7 @@ function MicActivity(props) {
       void refresh();
     }
   }, [appendLive, cutLive, refresh]);
-  const start = (0, import_react2.useCallback)(async (modeOverride) => {
+  const start = (0, import_react2.useCallback)(async () => {
     if (phaseRef.current !== "idle" || locked) return;
     writerRef.current?.cancel();
     writerRef.current = null;
@@ -2269,8 +2342,7 @@ function MicActivity(props) {
       setMessage(`\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043D\u0435 \u0433\u043E\u0442\u043E\u0432: ${phaseText(currentProvider)}. \u041F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u044C\u0442\u0435 \u043C\u043E\u0434\u0435\u043B\u044C \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445.`);
       return;
     }
-    const mode = modeOverride ?? settingsRef.current.mode;
-    if (mode === "live") {
+    if (settingsRef.current.mode === "live") {
       await startLive();
       return;
     }
@@ -2290,14 +2362,6 @@ function MicActivity(props) {
     setSeconds(0);
     setPhase("recording");
   }, [inputActions, locked, startLive]);
-  const startWithMode = (0, import_react2.useCallback)(
-    (mode) => {
-      updateSettings((current2) => ({ ...current2, mode }));
-      setQuickOpen(false);
-      void start(mode);
-    },
-    [start]
-  );
   const finish = (0, import_react2.useCallback)(async () => {
     if (liveRef.current) {
       await finishLive();
@@ -2461,7 +2525,7 @@ function MicActivity(props) {
   (0, import_react2.useEffect)(() => () => cancel(), [cancel]);
   const expanded = phase !== "idle";
   (0, import_react2.useEffect)(() => {
-    if (expanded) setQuickOpen(false);
+    if (expanded) setMenu("none");
   }, [expanded]);
   (0, import_react2.useEffect)(() => {
     onActiveChange?.(expanded);
@@ -2471,9 +2535,9 @@ function MicActivity(props) {
     setMessage("");
     if (phaseRef.current !== "recording") setPhase("idle");
   }, [sessionId]);
-  const openQuick = (x, y) => {
-    if (quickOpen) {
-      setQuickOpen(false);
+  const openMenu = (kind, x, y) => {
+    if (menu === kind) {
+      setMenu("none");
       return;
     }
     if (typeof x === "number" && typeof y === "number") {
@@ -2482,18 +2546,22 @@ function MicActivity(props) {
         bottom: Math.max(8, window.innerHeight - y)
       });
     }
-    setQuickOpen(true);
+    setMenu(kind);
   };
-  const openQuickFromElement = (element) => {
+  const openMenuFromElement = (kind, element) => {
     const rect = element.getBoundingClientRect();
-    openQuick(rect.right, rect.top + rect.height / 2);
+    openMenu(kind, rect.right, rect.top + rect.height / 2);
   };
+  const chooseMode = (0, import_react2.useCallback)((mode) => {
+    updateSettings((current2) => ({ ...current2, mode }));
+    setMenu("none");
+  }, []);
   const beginHold = (element) => {
     holdFiredRef.current = false;
     window.clearTimeout(holdTimerRef.current);
     holdTimerRef.current = window.setTimeout(() => {
       holdFiredRef.current = true;
-      openQuickFromElement(element);
+      openMenuFromElement("mode", element);
     }, 420);
   };
   const endHold = () => window.clearTimeout(holdTimerRef.current);
@@ -2505,10 +2573,10 @@ function MicActivity(props) {
         {
           type: "button",
           className: "vs-trigger",
-          title: usable ? "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434 \xB7 \u0443\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435 \u2014 \u0431\u044B\u0441\u0442\u0440\u043E\u0435 \u043C\u0435\u043D\u044E, \u043F\u0440\u0430\u0432\u044B\u0439 \u043A\u043B\u0438\u043A \u2014 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438" : "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434: \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435 \xB7 \u0443\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435 \u2014 \u0431\u044B\u0441\u0442\u0440\u043E\u0435 \u043C\u0435\u043D\u044E, \u043F\u0440\u0430\u0432\u044B\u0439 \u043A\u043B\u0438\u043A \u2014 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
+          title: usable ? "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434 \xB7 \u0443\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435 \u2014 \u0432\u044B\u0431\u043E\u0440 \u0440\u0435\u0436\u0438\u043C\u0430, \u043F\u0440\u0430\u0432\u044B\u0439 \u043A\u043B\u0438\u043A \u2014 \u0431\u044B\u0441\u0442\u0440\u044B\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438" : "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434: \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435 \xB7 \u0443\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435 \u2014 \u0432\u044B\u0431\u043E\u0440 \u0440\u0435\u0436\u0438\u043C\u0430, \u043F\u0440\u0430\u0432\u044B\u0439 \u043A\u043B\u0438\u043A \u2014 \u0431\u044B\u0441\u0442\u0440\u044B\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
           "aria-label": "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434",
           "aria-haspopup": "menu",
-          "aria-expanded": quickOpen,
+          "aria-expanded": menu !== "none",
           disabled: Boolean(locked),
           onMouseDown: (event) => event.preventDefault(),
           onPointerDown: (event) => {
@@ -2532,8 +2600,7 @@ function MicActivity(props) {
             event.preventDefault();
             endHold();
             holdFiredRef.current = false;
-            setQuickOpen(false);
-            voiceStudio.openSettings();
+            openMenu("settings", event.clientX, event.clientY);
           },
           children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconMic, {})
         }
@@ -2548,11 +2615,20 @@ function MicActivity(props) {
           "aria-haspopup": "menu",
           title: modeTitle(settings),
           onMouseDown: (event) => event.preventDefault(),
-          onClick: (event) => openQuickFromElement(event.currentTarget),
+          onClick: (event) => openMenuFromElement("mode", event.currentTarget),
           children: settings.mode === "live" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconLiveBars, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconRecordDot, {})
         }
       ),
-      quickOpen ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      menu === "mode" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        ModeMenu,
+        {
+          settings,
+          onChoose: chooseMode,
+          onClose: () => setMenu("none"),
+          style: quickAnchor
+        }
+      ) : null,
+      menu === "settings" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         QuickSettings,
         {
           ctx,
@@ -2560,8 +2636,7 @@ function MicActivity(props) {
           catalog,
           refresh,
           openSettings: voiceStudio.openSettings,
-          onStart: startWithMode,
-          onClose: () => setQuickOpen(false),
+          onClose: () => setMenu("none"),
           style: quickAnchor
         }
       ) : null
