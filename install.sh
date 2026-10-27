@@ -118,7 +118,7 @@ fetch_repo() {
   [ -n "$inner" ] || fail "архив пустой"
   has_plugin "$inner" || fail "в архиве нет plugin/package.json — $REPO@$VERSION не похож на Voice Audio Rus"
 
-  rm -rf "$dest"
+  rm -rf "$dest" || say "кеш занят (DSH открыт?), файлы перезаписываются поверх"
   mkdir -p "$dest"
   cp -R "$inner"/. "$dest"/
   rm -rf "$tmp"

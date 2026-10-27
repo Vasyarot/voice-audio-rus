@@ -113,7 +113,10 @@ function Invoke-Download([string]$Target) {
     Fail "в архиве нет plugin/package.json — $Repo@$Version не похож на Voice Audio Rus"
   }
 
-  if (Test-Path -LiteralPath $Target) { Remove-Item -LiteralPath $Target -Recurse -Force }
+  if (Test-Path -LiteralPath $Target) {
+    try { Remove-Item -LiteralPath $Target -Recurse -Force -ErrorAction Stop }
+    catch { Step 'кеш занят (DSH открыт?), файлы перезаписываются поверх' }
+  }
   New-Item -ItemType Directory -Path $Target -Force | Out-Null
   Copy-Item -Path (Join-Path $inner.FullName '*') -Destination $Target -Recurse -Force
   Remove-Item $work, $zip -Recurse -Force -ErrorAction SilentlyContinue
