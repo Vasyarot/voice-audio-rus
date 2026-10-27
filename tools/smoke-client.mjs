@@ -171,6 +171,9 @@ for (const nested of ['Сравнение моделей', 'История ди�
   if (!settingsHtml.includes(nested)) throw new Error(`merged section missing part: ${nested}`)
 }
 if (settingsHtml.includes('Облачный провайдер')) throw new Error('duplicated cloud section is still rendered')
+if (!settingsHtml.includes('Вернуть настройки по умолчанию')) throw new Error('reset button is missing')
+if (settingsHtml.includes('Да, сбросить')) throw new Error('reset confirmation must stay closed until asked')
+if (settingsHtml.includes('margin:6px 0 12px')) throw new Error('settings rows must not override the shared gap')
 
 console.log('render smoke passed, settings page bytes:', settingsHtml.length)
 console.log('smoke test passed')

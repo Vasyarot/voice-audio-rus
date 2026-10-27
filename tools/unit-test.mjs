@@ -14,9 +14,19 @@ await writeFile(
   `
 export { postProcess } from '../plugin/src/client/text'
 export { encodeWav, downsample, processSamples } from '../plugin/src/client/audio'
-export { DEFAULT_SETTINGS } from '../plugin/src/client/settings'
+export { DEFAULT_SETTINGS, getSettings, resetSettings, setSettings } from '../plugin/src/client/settings'
 `,
 )
+
+// settings.ts touches localStorage while its module body runs, so the stub has to
+// be in place before the bundle is imported.
+const storage = new Map()
+globalThis.window = {
+  localStorage: {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, String(value)),
+  },
+}
 
 await build({
   entryPoints: [resolve(root, '.tmp/unit-entry.ts')],
@@ -29,9 +39,27 @@ await build({
   logLevel: 'warning',
 })
 
-const { postProcess, encodeWav, downsample, processSamples, DEFAULT_SETTINGS } = await import(
+const { postProcess, encodeWav, downsample, processSamples, DEFAULT_SETTINGS, resetSettings, setSettings, getSettings } = await import(
   new URL('../.tmp/unit.mjs', import.meta.url).href
 )
+
+// Reset returns audio/text settings to defaults but keeps the host-owned model choice.
+setSettings({
+  ...DEFAULT_SETTINGS,
+  providerId: 'cloud-openai',
+  language: 'en',
+  gainDb: 9,
+  gate: { enabled: false, thresholdDb: -60, holdMs: 900 },
+  text: { autoPunctuation: false, removeFillers: true, dictionary: [{ from: 'а', to: 'б' }] },
+})
+resetSettings({ providerId: getSettings().providerId, language: getSettings().language })
+const afterReset = getSettings()
+assert.equal(afterReset.providerId, 'cloud-openai', 'reset must keep the provider')
+assert.equal(afterReset.language, 'en', 'reset must keep the language')
+assert.equal(afterReset.gainDb, DEFAULT_SETTINGS.gainDb)
+assert.deepEqual(afterReset.gate, DEFAULT_SETTINGS.gate)
+assert.deepEqual(afterReset.text, DEFAULT_SETTINGS.text)
+assert.equal(afterReset.ptt.enabled, DEFAULT_SETTINGS.ptt.enabled)
 
 const base = structuredClone(DEFAULT_SETTINGS)
 base.text = { ...base.text, autoPunctuation: true, removeFillers: true, dictionary: [] }

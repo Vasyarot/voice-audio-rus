@@ -52,6 +52,8 @@ export const CSS = `
 .vs-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .vs-modal-head h4{margin:0;font-size:14px;font-weight:600}
 .vs-footer-action{display:flex;justify-content:flex-end;padding-top:4px}
+.vs-reset-list{display:flex;flex-direction:column;gap:6px}
+.vs-reset-list ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:12.5px;line-height:1.45;color:var(--dsw-alias-label-tertiary, #999)}
 .vs-btn:disabled{opacity:.5;cursor:default}
 .vs-dict{display:flex;flex-direction:column;gap:6px}
 .vs-dict-row{display:grid;grid-template-columns:1fr 1fr auto;gap:6px}

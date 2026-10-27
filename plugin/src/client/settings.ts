@@ -143,8 +143,13 @@ export function updateSettings(recipe: (settings: Settings) => Settings): void {
   setSettings(recipe(getSettings()))
 }
 
-export function resetSettings(): void {
-  setSettings(clone(DEFAULT_SETTINGS))
+/**
+ * Restore the shipped defaults. `keep` preserves choices that live outside the
+ * settings file (the model selection is owned by the host), so a reset never
+ * swaps the recognizer under the user.
+ */
+export function resetSettings(keep: Partial<Settings> = {}): void {
+  setSettings({ ...clone(DEFAULT_SETTINGS), ...keep })
 }
 
 export function useSettings(): Settings {

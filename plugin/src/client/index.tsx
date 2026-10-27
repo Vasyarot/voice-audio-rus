@@ -6,7 +6,7 @@ import TYPERT_REMOTE from '../vendor/speech-remote.js'
 import { attachSuppressorAsync, audioBase64, listInputDevices, requestMicrophonePermission, RecorderError, VoiceRecorder } from './audio'
 import type { AudioDevice } from './audio'
 import { addHistory, clearHistory, exportHistory, removeHistory, useHistory } from './history'
-import { DEFAULT_SETTINGS, normalizeSettings, resetSettings, setSettings, updateSettings, useSettings } from './settings'
+import { normalizeSettings, resetSettings, updateSettings, useSettings } from './settings'
 import type { Settings } from './settings'
 import { CSS } from './styles'
 import { postProcess } from './text'
@@ -1021,6 +1021,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
   const [modelOptions, setModelOptions] = useState<string[]>([])
   const [modelsNotice, setModelsNotice] = useState<string | null>(null)
   const [cloudOpen, setCloudOpen] = useState(false)
+  const [resetOpen, setResetOpen] = useState(false)
   const cloudDraftKey = 'dsh.voice-studio.cloudDraft'
 
   useEffect(() => {
@@ -1223,6 +1224,12 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
   }, [selectedProvider?.id, selectedProvider?.preparation?.phase, refresh, ctx])
 
   const update = (recipe: (current: Settings) => Settings) => updateSettings(recipe)
+  const confirmReset = () => {
+    // The provider choice lives on the host, so the reset keeps it: audio and text
+    // settings return to defaults, the selected model does not change under the user.
+    resetSettings({ providerId: settings.providerId, language: settings.language })
+    setResetOpen(false)
+  }
   const noiseReductionOn = settings.rnnoise.enabled && settings.gate.enabled && settings.highpass.enabled
   const toggleNoiseReduction = (enabled: boolean) =>
     update((current) => ({
@@ -1282,7 +1289,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
             ))}
           </select>
         </Row>
-        <div className="vs-line" style={{ margin: '6px 0 12px' }}>
+        <div className="vs-line">
           <span className="vs-hint" data-status={statusKind(selectedProvider)}>
             Статус: {statusFor(selectedProvider)}
           </span>
@@ -1668,7 +1675,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
         </div>
       </details>
       <div className="vs-footer-action">
-        <button type="button" className="vs-btn" data-kind="danger" onClick={() => resetSettings()}>
+        <button type="button" className="vs-btn" data-kind="danger" onClick={() => setResetOpen(true)}>
           Вернуть настройки по умолчанию
         </button>
       </div>
@@ -1759,6 +1766,43 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
               </button>
             </div>
             {cloudNotice ? <p className="vs-hint">{cloudNotice}</p> : null}
+          </div>
+        </div>
+      ) : null}
+      {resetOpen ? (
+        <div className="vs-overlay" role="dialog" aria-modal="true" aria-label="Сброс настроек">
+          <div className="vs-modal">
+            <div className="vs-modal-head">
+              <h4>Вернуть настройки по умолчанию?</h4>
+              <button type="button" className="vs-round" aria-label="Закрыть" onClick={() => setResetOpen(false)}>
+                <IconClose />
+              </button>
+            </div>
+            <p className="vs-hint">Текущие значения звука и текста будут заменены стандартными. Отменить это нельзя.</p>
+            <div className="vs-reset-list">
+              <h5 className="vs-subhead">Что сбросится</h5>
+              <ul>
+                <li>Микрофон: выбранное устройство → «Автоматически».</li>
+                <li>Шумоподавление: RNNoise и его сила, обрезной фильтр, шумовой гейт, фильтры браузера.</li>
+                <li>Обработка звука: входное усиление, АРУ и её пределы, защита от перегрузки, пороги гейта.</li>
+                <li>Тишина и клавиши: авто-стоп по тишине, пауза, порог, Push-to-talk и сочетание клавиш.</li>
+                <li>Текст: авто-пунктуация, удаление слов-заиканий и весь словарь замен.</li>
+              </ul>
+              <h5 className="vs-subhead">Что останется</h5>
+              <ul>
+                <li>Выбранная модель распознавания и язык.</li>
+                <li>История диктовок и скачанные локальные модели.</li>
+                <li>Параметры облачного провайдера и сохранённый API-ключ.</li>
+              </ul>
+            </div>
+            <div className="vs-controls">
+              <button type="button" className="vs-btn" data-kind="danger" onClick={confirmReset}>
+                Да, сбросить
+              </button>
+              <button type="button" className="vs-btn" data-kind="primary" onClick={() => setResetOpen(false)}>
+                Отмена
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
