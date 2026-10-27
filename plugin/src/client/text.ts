@@ -80,5 +80,7 @@ export function joinLiveText(previous: string, piece: string): string {
   if (clean === '') return previous
   if (previous === '') return clean
   if (/^[,.;:!?…»)]/u.test(clean)) return `${previous}${clean}`
-  return `${previous} ${clean}`
+  // A fragment that starts a new sentence keeps its capital letter.
+  const next = /[.!?…]$/u.test(previous.trim()) ? clean.charAt(0).toUpperCase() + clean.slice(1) : clean
+  return `${previous} ${next}`
 }

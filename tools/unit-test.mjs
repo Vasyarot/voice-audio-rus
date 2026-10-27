@@ -120,6 +120,7 @@ assert.equal(joinLiveText('', ' Привет '), 'Привет')
 assert.equal(joinLiveText('Привет', ' мир'), 'Привет мир')
 assert.equal(joinLiveText('Привет', '.'), 'Привет.')
 assert.equal(joinLiveText('Привет', ', мир'), 'Привет, мир')
+assert.equal(joinLiveText('Привет.', 'как дела'), 'Привет. Как дела')
 assert.equal(joinLiveText('Привет', '   '), 'Привет')
 
 const liveWav = wavFromSamples(new Float32Array(48000).fill(0.2), 48000, structuredClone(DEFAULT_SETTINGS))

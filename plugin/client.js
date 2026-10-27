@@ -1437,7 +1437,8 @@ function joinLiveText(previous, piece) {
   if (clean === "") return previous;
   if (previous === "") return clean;
   if (/^[,.;:!?…»)]/u.test(clean)) return `${previous}${clean}`;
-  return `${previous} ${clean}`;
+  const next = /[.!?…]$/u.test(previous.trim()) ? clean.charAt(0).toUpperCase() + clean.slice(1) : clean;
+  return `${previous} ${next}`;
 }
 
 // plugin/src/client/cloud.ts
