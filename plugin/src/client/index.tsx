@@ -96,13 +96,14 @@ function secondsText(value: number): string {
 
 /** Tooltip that explains the active mode and when the capture stops by itself. */
 function modeTitle(settings: Settings): string {
-  if (settings.mode === 'live') {
-    return `Живой режим: текст дописывается каждые ${secondsText(settings.live.chunkSeconds)} с речи и после паузы ${secondsText(settings.live.pauseMs / 1000)} с; запись останавливается вручную`
-  }
-  const stop = settings.vad.autoStop
+  const stop = settings.mode === 'live' ? settings.live.autoStop : settings.vad.autoStop
+  const stopText = stop
     ? `авто-стоп после ${secondsText(settings.vad.silenceMs / 1000)} с тишины`
-    : 'авто-стоп по тишине выключен'
-  return `По кнопке: распознавание после остановки, ${stop}`
+    : 'остановка вручную'
+  if (settings.mode === 'live') {
+    return `Живой режим: текст дописывается каждые ${secondsText(settings.live.chunkSeconds)} с речи и после паузы ${secondsText(settings.live.pauseMs / 1000)} с; ${stopText}`
+  }
+  return `По кнопке: распознавание после остановки; ${stopText}`
 }
 
 // ---------------------------------------------------------------- speech catalog
@@ -363,21 +364,8 @@ export function QuickSettings(props: QuickProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const [noticeKind, setNoticeKind] = useState<'ok' | 'error' | 'pending'>('pending')
   const [busy, setBusy] = useState(false)
-  const [devices, setDevices] = useState<AudioDevice[]>([])
   const pullingRef = useRef(false)
   const best = useMemo(() => recommendModel(models), [models])
-
-  useEffect(() => {
-    let alive = true
-    listInputDevices()
-      .then((list) => {
-        if (alive) setDevices(list)
-      })
-      .catch(() => {})
-    return () => {
-      alive = false
-    }
-  }, [])
 
   useEffect(() => {
     saveCloudDraft(draft)
@@ -567,28 +555,6 @@ export function QuickSettings(props: QuickProps) {
           {statusFor(provider)}
         </p>
       </div>
-      <div className="vs-quick-block">
-        <span className="vs-quick-label">Микрофон</span>
-        <select
-          className="vs-select"
-          value={settings.deviceId}
-          onChange={(event) => {
-            const id = event.target.value
-            const found = devices.find((device) => device.id === id)
-            updateSettings((current) => ({ ...current, deviceId: id, deviceLabel: found?.label ?? '' }))
-          }}
-        >
-          <option value="">Автоматически</option>
-          {devices.map((device) => (
-            <option key={device.id} value={device.id}>
-              {device.label}
-            </option>
-          ))}
-        </select>
-        {devices.length === 0 ? (
-          <p className="vs-hint">Имена появятся после разрешения доступа к микрофону.</p>
-        ) : null}
-      </div>
       {isCloud ? (
         <div className="vs-quick-block">
           <span className="vs-quick-label">Облачная модель</span>
@@ -696,10 +662,10 @@ export function ModeMenu(props: ModeProps) {
     { mode: 'utterance', title: 'По кнопке', hint: 'запись целиком, текст после остановки' },
     { mode: 'live', title: 'В реальном времени', hint: 'текст дописывается по ходу речи' },
   ]
-  const stopHint =
-    props.settings.mode === 'live' || !props.settings.vad.autoStop
-      ? 'остановка вручную'
-      : `авто-стоп после ${secondsText(props.settings.vad.silenceMs / 1000)} с тишины`
+  const autoStop = props.settings.mode === 'live' ? props.settings.live.autoStop : props.settings.vad.autoStop
+  const stopHint = autoStop
+    ? `авто-стоп после ${secondsText(props.settings.vad.silenceMs / 1000)} с тишины`
+    : 'остановка вручную'
 
   return (
     <div className="vs-quick vs-mode-menu" ref={boxRef} style={props.style} role="menu" aria-label="Режим диктовки">
@@ -1134,9 +1100,10 @@ function MicActivity(props: ActivityProps) {
   // Meter, silence auto-stop and the hard duration limit.
   useEffect(() => {
     if (phase !== 'recording') return
-    // Live mode inserts text continuously, so the silence auto-stop would cut the
-    // session mid-thought: it stays manual there (with a long hard limit).
+    // Both modes can end by silence; live mode keeps its own switch so a long
+    // dictation can stay open until the user stops it manually.
     const liveMode = settingsRef.current.mode === 'live'
+    const autoStop = liveMode ? settingsRef.current.live.autoStop : settingsRef.current.vad.autoStop
     let raf = 0
     let silentMs = 0
     let publishedSilence = -1
@@ -1156,7 +1123,7 @@ function MicActivity(props: ActivityProps) {
         const delta = now - last
         last = now
         const vad = settingsRef.current.vad
-        if (vad.autoStop && !liveMode) {
+        if (autoStop) {
           if (db > vad.thresholdDb) silentMs = 0
           else silentMs += delta
           // Publish the silence run so the row can show the remaining time.
@@ -1396,15 +1363,15 @@ function MicActivity(props: ActivityProps) {
           <span className="vs-mode-chip" data-mode={live ? 'live' : 'utterance'} title={modeTitle(settings)}>
             {live ? <IconLiveBars /> : <IconRecordDot />}
             <span>{live ? 'живой' : 'кнопка'}</span>
-            {live ? <span className="vs-mode-timer">стоп вручную</span> : null}
-            {!live && settings.vad.autoStop ? (
+            {(live ? settings.live.autoStop : settings.vad.autoStop) ? (
               <span className="vs-mode-timer">
                 {silence > 200
                   ? `${secondsText(silence / 1000)} / ${secondsText(settings.vad.silenceMs / 1000)} с`
                   : `стоп ${secondsText(settings.vad.silenceMs / 1000)} с`}
               </span>
-            ) : null}
-            {!live && !settings.vad.autoStop ? <span className="vs-mode-timer">стоп вручную</span> : null}
+            ) : (
+              <span className="vs-mode-timer">стоп вручную</span>
+            )}
           </span>
           <button
             type="button"
@@ -2115,10 +2082,19 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
                 onChange={(value) => update((current) => ({ ...current, live: { ...current.live, pauseMs: value } }))}
               />
             </Row>
+            <Row
+              label="Остановка по тишине"
+              hint="Живой режим закончится сам, когда вы замолчите на паузу из раздела «Тишина и клавиши». Выключите, чтобы останавливать только вручную."
+            >
+              <Check
+                checked={settings.live.autoStop}
+                onChange={(value) => update((current) => ({ ...current, live: { ...current.live, autoStop: value } }))}
+              />
+            </Row>
             <p className="vs-hint">
-              Режим работает с любым провайдером: локальный Whisper и облако распознают короткие куски. Авто-стоп по
-              тишине здесь выключен — запись останавливается кнопкой, Esc или сочетанием Push-to-talk. Текст вставляется
-              сам, кнопки «Вставить» больше нет.
+              Режим работает с любым провайдером: локальный Whisper и облако распознают короткие куски. Текст вставляется
+              сам, кнопки «Вставить» больше нет. Остановить можно кнопкой, Esc или Push-to-talk — либо автоматически по
+              тишине.
             </p>
           </>
         ) : null}
@@ -2533,7 +2509,7 @@ function SettingsPage(props: { t?: any; voiceStudio: { ctx: any } }) {
                 <li>Микрофон: выбранное устройство → «Автоматически».</li>
                 <li>Шумоподавление: RNNoise и его сила, обрезной фильтр, шумовой гейт, фильтры браузера.</li>
                 <li>Обработка звука: входное усиление, АРУ и её пределы, защита от перегрузки, пороги гейта.</li>
-                <li>Режим диктовки: «по кнопке», максимум фразы и пауза для вставки в живом режиме.</li>
+                <li>Режим диктовки: «по кнопке», максимум фразы, пауза для вставки и авто-стоп по тишине.</li>
                 <li>Тишина и клавиши: авто-стоп по тишине, пауза, порог, Push-to-talk и сочетание клавиш.</li>
                 <li>Текст: авто-пунктуация, удаление слов-заиканий и весь словарь замен.</li>
               </ul>

@@ -198,14 +198,14 @@ for (const marker of ['В реальном времени', 'По кнопке',
 
 console.log('render smoke passed, settings page bytes:', settingsHtml.length)
 
-// The composer popover renders its own tree: provider list, microphone and the
+// The composer popover renders its own tree: provider list, language and the
 // cloud block with cached models; the mode itself lives in the hold menu.
 storage.set('dsh.voice-studio.cloudModels', JSON.stringify(['whisper-1', 'gpt-4o-transcribe', 'tts-1']))
 const panelSettings = {
   deviceId: '',
   deviceLabel: '',
   mode: 'live',
-  live: { chunkSeconds: 6, pauseMs: 700 },
+  live: { chunkSeconds: 6, pauseMs: 700, autoStop: true },
   browser: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
   rnnoise: { enabled: true, mix: 1 },
   highpass: { enabled: true, hz: 80 },
@@ -238,11 +238,11 @@ const panelHtml = renderToString(
     onClose() {},
   }),
 )
-for (const marker of ['Модель распознавания', 'Микрофон', 'Облачная модель', 'Подтянуть модели', 'Все настройки']) {
+for (const marker of ['Модель распознавания', 'Облачная модель', 'Подтянуть модели', 'Все настройки']) {
   if (!panelHtml.includes(marker)) throw new Error(`quick panel missing: ${marker}`)
 }
-for (const duplicated of ['По кнопке', 'В реальном времени', 'Записать', 'Режим']) {
-  if (panelHtml.includes(duplicated)) throw new Error(`quick panel duplicates the mode control: ${duplicated}`)
+for (const duplicated of ['По кнопке', 'В реальном времени', 'Записать', 'Режим', 'vs-quick-label">Микрофон']) {
+  if (panelHtml.includes(duplicated)) throw new Error(`quick panel duplicates a control: ${duplicated}`)
 }
 if (!panelHtml.includes('★ лучшая для речи')) throw new Error('quick panel must mark the recommended model')
 
@@ -254,11 +254,19 @@ const modeHtml = renderToString(
     onClose() {},
   }),
 )
-for (const marker of ['Режим диктовки', 'По кнопке', 'В реальном времени', 'role="menuitemradio"', 'остановка вручную']) {
+for (const marker of ['Режим диктовки', 'По кнопке', 'В реальном времени', 'role="menuitemradio"', 'авто-стоп после 1.8 с тишины']) {
   if (!modeHtml.includes(marker)) throw new Error(`mode menu missing: ${marker}`)
 }
 if (!modeHtml.includes('aria-checked="true"')) throw new Error('mode menu must mark the current mode')
 if (modeHtml.includes('Записать')) throw new Error('mode menu must not start a capture')
+
+// The live mode can end by silence; the switch lives on the settings page.
+const liveOff = { ...panelSettings, live: { ...panelSettings.live, autoStop: false } }
+const manualModeHtml = renderToString(
+  React.createElement(module.ModeMenu, { settings: liveOff, onChoose() {}, onClose() {} }),
+)
+if (!manualModeHtml.includes('остановка вручную')) throw new Error('a disabled live auto-stop must read as manual')
+if (!settingsHtml.includes('Остановка по тишине')) throw new Error('the settings page must expose the live auto-stop switch')
 if (/aria-expanded="true"/.test(micHtml)) throw new Error('microphone must not open the menu by itself')
 if (micHtml.includes('>Вставить<')) throw new Error('the composer must not ask for a manual insert')
 

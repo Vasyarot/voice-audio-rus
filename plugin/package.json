@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-voice-studio",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "private": true,
   "description": "Voice Audio Rus: голосовой ввод для DeepSeek Harness с локальным Whisper (русский приоритет), RNNoise, тест микрофона и сравнение STT",
   "type": "module",

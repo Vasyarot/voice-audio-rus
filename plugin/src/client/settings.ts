@@ -9,7 +9,7 @@ export type Settings = {
   deviceId: string
   deviceLabel: string
   mode: DictationMode
-  live: { chunkSeconds: number; pauseMs: number }
+  live: { chunkSeconds: number; pauseMs: number; autoStop: boolean }
   browser: { echoCancellation: boolean; noiseSuppression: boolean; autoGainControl: boolean }
   rnnoise: { enabled: boolean; mix: number }
   highpass: { enabled: boolean; hz: number }
@@ -28,7 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
   deviceId: '',
   deviceLabel: '',
   mode: 'utterance',
-  live: { chunkSeconds: 1.5, pauseMs: 400 },
+  live: { chunkSeconds: 1.5, pauseMs: 400, autoStop: true },
   browser: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
   rnnoise: { enabled: true, mix: 1 },
   highpass: { enabled: true, hz: 80 },
@@ -75,6 +75,7 @@ export function normalizeSettings(raw: unknown): Settings {
     live: {
       chunkSeconds: clamp(value.live?.chunkSeconds, 1, 15, base.live.chunkSeconds),
       pauseMs: clamp(value.live?.pauseMs, 200, 3000, base.live.pauseMs),
+      autoStop: bool(value.live?.autoStop, base.live.autoStop),
     },
     browser: {
       echoCancellation: bool(value.browser?.echoCancellation, base.browser.echoCancellation),

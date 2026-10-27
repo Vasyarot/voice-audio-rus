@@ -1072,7 +1072,7 @@ var DEFAULT_SETTINGS = {
   deviceId: "",
   deviceLabel: "",
   mode: "utterance",
-  live: { chunkSeconds: 1.5, pauseMs: 400 },
+  live: { chunkSeconds: 1.5, pauseMs: 400, autoStop: true },
   browser: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
   rnnoise: { enabled: true, mix: 1 },
   highpass: { enabled: true, hz: 80 },
@@ -1108,7 +1108,8 @@ function normalizeSettings(raw) {
     mode: value.mode === "live" ? "live" : "utterance",
     live: {
       chunkSeconds: clamp(value.live?.chunkSeconds, 1, 15, base.live.chunkSeconds),
-      pauseMs: clamp(value.live?.pauseMs, 200, 3e3, base.live.pauseMs)
+      pauseMs: clamp(value.live?.pauseMs, 200, 3e3, base.live.pauseMs),
+      autoStop: bool(value.live?.autoStop, base.live.autoStop)
     },
     browser: {
       echoCancellation: bool(value.browser?.echoCancellation, base.browser.echoCancellation),
@@ -1586,11 +1587,12 @@ function secondsText(value) {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 function modeTitle(settings) {
+  const stop = settings.mode === "live" ? settings.live.autoStop : settings.vad.autoStop;
+  const stopText = stop ? `\u0430\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E\u0441\u043B\u0435 ${secondsText(settings.vad.silenceMs / 1e3)} \u0441 \u0442\u0438\u0448\u0438\u043D\u044B` : "\u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0430 \u0432\u0440\u0443\u0447\u043D\u0443\u044E";
   if (settings.mode === "live") {
-    return `\u0416\u0438\u0432\u043E\u0439 \u0440\u0435\u0436\u0438\u043C: \u0442\u0435\u043A\u0441\u0442 \u0434\u043E\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043A\u0430\u0436\u0434\u044B\u0435 ${secondsText(settings.live.chunkSeconds)} \u0441 \u0440\u0435\u0447\u0438 \u0438 \u043F\u043E\u0441\u043B\u0435 \u043F\u0430\u0443\u0437\u044B ${secondsText(settings.live.pauseMs / 1e3)} \u0441; \u0437\u0430\u043F\u0438\u0441\u044C \u043E\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u0432\u0440\u0443\u0447\u043D\u0443\u044E`;
+    return `\u0416\u0438\u0432\u043E\u0439 \u0440\u0435\u0436\u0438\u043C: \u0442\u0435\u043A\u0441\u0442 \u0434\u043E\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043A\u0430\u0436\u0434\u044B\u0435 ${secondsText(settings.live.chunkSeconds)} \u0441 \u0440\u0435\u0447\u0438 \u0438 \u043F\u043E\u0441\u043B\u0435 \u043F\u0430\u0443\u0437\u044B ${secondsText(settings.live.pauseMs / 1e3)} \u0441; ${stopText}`;
   }
-  const stop = settings.vad.autoStop ? `\u0430\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E\u0441\u043B\u0435 ${secondsText(settings.vad.silenceMs / 1e3)} \u0441 \u0442\u0438\u0448\u0438\u043D\u044B` : "\u0430\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E \u0442\u0438\u0448\u0438\u043D\u0435 \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D";
-  return `\u041F\u043E \u043A\u043D\u043E\u043F\u043A\u0435: \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435 \u043F\u043E\u0441\u043B\u0435 \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438, ${stop}`;
+  return `\u041F\u043E \u043A\u043D\u043E\u043F\u043A\u0435: \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435 \u043F\u043E\u0441\u043B\u0435 \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438; ${stopText}`;
 }
 function catalogError(result) {
   const error = result?.error;
@@ -1774,19 +1776,8 @@ function QuickSettings(props) {
   const [notice, setNotice] = (0, import_react2.useState)(null);
   const [noticeKind, setNoticeKind] = (0, import_react2.useState)("pending");
   const [busy, setBusy] = (0, import_react2.useState)(false);
-  const [devices, setDevices] = (0, import_react2.useState)([]);
   const pullingRef = (0, import_react2.useRef)(false);
   const best = (0, import_react2.useMemo)(() => recommendModel(models), [models]);
-  (0, import_react2.useEffect)(() => {
-    let alive = true;
-    listInputDevices().then((list) => {
-      if (alive) setDevices(list);
-    }).catch(() => {
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
   (0, import_react2.useEffect)(() => {
     saveCloudDraft(draft);
   }, [draft]);
@@ -1944,26 +1935,6 @@ function QuickSettings(props) {
         statusFor(provider)
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-block", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-quick-label", children: "\u041C\u0438\u043A\u0440\u043E\u0444\u043E\u043D" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-        "select",
-        {
-          className: "vs-select",
-          value: settings.deviceId,
-          onChange: (event) => {
-            const id = event.target.value;
-            const found = devices.find((device) => device.id === id);
-            updateSettings((current2) => ({ ...current2, deviceId: id, deviceLabel: found?.label ?? "" }));
-          },
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "", children: "\u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438" }),
-            devices.map((device) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: device.id, children: device.label }, device.id))
-          ]
-        }
-      ),
-      devices.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u0418\u043C\u0435\u043D\u0430 \u043F\u043E\u044F\u0432\u044F\u0442\u0441\u044F \u043F\u043E\u0441\u043B\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u0438\u044F \u0434\u043E\u0441\u0442\u0443\u043F\u0430 \u043A \u043C\u0438\u043A\u0440\u043E\u0444\u043E\u043D\u0443." }) : null
-    ] }),
     isCloud ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-block", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-quick-label", children: "\u041E\u0431\u043B\u0430\u0447\u043D\u0430\u044F \u043C\u043E\u0434\u0435\u043B\u044C" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -2050,7 +2021,8 @@ function ModeMenu(props) {
     { mode: "utterance", title: "\u041F\u043E \u043A\u043D\u043E\u043F\u043A\u0435", hint: "\u0437\u0430\u043F\u0438\u0441\u044C \u0446\u0435\u043B\u0438\u043A\u043E\u043C, \u0442\u0435\u043A\u0441\u0442 \u043F\u043E\u0441\u043B\u0435 \u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438" },
     { mode: "live", title: "\u0412 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u043C \u0432\u0440\u0435\u043C\u0435\u043D\u0438", hint: "\u0442\u0435\u043A\u0441\u0442 \u0434\u043E\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043F\u043E \u0445\u043E\u0434\u0443 \u0440\u0435\u0447\u0438" }
   ];
-  const stopHint = props.settings.mode === "live" || !props.settings.vad.autoStop ? "\u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0430 \u0432\u0440\u0443\u0447\u043D\u0443\u044E" : `\u0430\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E\u0441\u043B\u0435 ${secondsText(props.settings.vad.silenceMs / 1e3)} \u0441 \u0442\u0438\u0448\u0438\u043D\u044B`;
+  const autoStop = props.settings.mode === "live" ? props.settings.live.autoStop : props.settings.vad.autoStop;
+  const stopHint = autoStop ? `\u0430\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E\u0441\u043B\u0435 ${secondsText(props.settings.vad.silenceMs / 1e3)} \u0441 \u0442\u0438\u0448\u0438\u043D\u044B` : "\u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0430 \u0432\u0440\u0443\u0447\u043D\u0443\u044E";
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick vs-mode-menu", ref: boxRef, style: props.style, role: "menu", "aria-label": "\u0420\u0435\u0436\u0438\u043C \u0434\u0438\u043A\u0442\u043E\u0432\u043A\u0438", children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vs-quick-head", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: "\u0420\u0435\u0436\u0438\u043C \u0434\u0438\u043A\u0442\u043E\u0432\u043A\u0438" }),
@@ -2426,6 +2398,7 @@ function MicActivity(props) {
   (0, import_react2.useEffect)(() => {
     if (phase !== "recording") return;
     const liveMode = settingsRef.current.mode === "live";
+    const autoStop = liveMode ? settingsRef.current.live.autoStop : settingsRef.current.vad.autoStop;
     let raf = 0;
     let silentMs = 0;
     let publishedSilence = -1;
@@ -2445,7 +2418,7 @@ function MicActivity(props) {
         const delta = now - last;
         last = now;
         const vad = settingsRef.current.vad;
-        if (vad.autoStop && !liveMode) {
+        if (autoStop) {
           if (db > vad.thresholdDb) silentMs = 0;
           else silentMs += delta;
           const bucket = Math.round(silentMs / 100);
@@ -2667,9 +2640,7 @@ function MicActivity(props) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "vs-mode-chip", "data-mode": live ? "live" : "utterance", title: modeTitle(settings), children: [
         live ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconLiveBars, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconRecordDot, {}),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: live ? "\u0436\u0438\u0432\u043E\u0439" : "\u043A\u043D\u043E\u043F\u043A\u0430" }),
-        live ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-mode-timer", children: "\u0441\u0442\u043E\u043F \u0432\u0440\u0443\u0447\u043D\u0443\u044E" }) : null,
-        !live && settings.vad.autoStop ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-mode-timer", children: silence > 200 ? `${secondsText(silence / 1e3)} / ${secondsText(settings.vad.silenceMs / 1e3)} \u0441` : `\u0441\u0442\u043E\u043F ${secondsText(settings.vad.silenceMs / 1e3)} \u0441` }) : null,
-        !live && !settings.vad.autoStop ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-mode-timer", children: "\u0441\u0442\u043E\u043F \u0432\u0440\u0443\u0447\u043D\u0443\u044E" }) : null
+        (live ? settings.live.autoStop : settings.vad.autoStop) ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-mode-timer", children: silence > 200 ? `${secondsText(silence / 1e3)} / ${secondsText(settings.vad.silenceMs / 1e3)} \u0441` : `\u0441\u0442\u043E\u043F ${secondsText(settings.vad.silenceMs / 1e3)} \u0441` }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vs-mode-timer", children: "\u0441\u0442\u043E\u043F \u0432\u0440\u0443\u0447\u043D\u0443\u044E" })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         "button",
@@ -3284,7 +3255,21 @@ function SettingsPage(props) {
             onChange: (value) => update((current2) => ({ ...current2, live: { ...current2.live, pauseMs: value } }))
           }
         ) }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u0420\u0435\u0436\u0438\u043C \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u0441 \u043B\u044E\u0431\u044B\u043C \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u043E\u043C: \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0439 Whisper \u0438 \u043E\u0431\u043B\u0430\u043A\u043E \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u044E\u0442 \u043A\u043E\u0440\u043E\u0442\u043A\u0438\u0435 \u043A\u0443\u0441\u043A\u0438. \u0410\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E \u0442\u0438\u0448\u0438\u043D\u0435 \u0437\u0434\u0435\u0441\u044C \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D \u2014 \u0437\u0430\u043F\u0438\u0441\u044C \u043E\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u043A\u043D\u043E\u043F\u043A\u043E\u0439, Esc \u0438\u043B\u0438 \u0441\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u0435\u043C Push-to-talk. \u0422\u0435\u043A\u0441\u0442 \u0432\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0441\u0430\u043C, \u043A\u043D\u043E\u043F\u043A\u0438 \xAB\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C\xBB \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435\u0442." })
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          Row,
+          {
+            label: "\u041E\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0430 \u043F\u043E \u0442\u0438\u0448\u0438\u043D\u0435",
+            hint: "\u0416\u0438\u0432\u043E\u0439 \u0440\u0435\u0436\u0438\u043C \u0437\u0430\u043A\u043E\u043D\u0447\u0438\u0442\u0441\u044F \u0441\u0430\u043C, \u043A\u043E\u0433\u0434\u0430 \u0432\u044B \u0437\u0430\u043C\u043E\u043B\u0447\u0438\u0442\u0435 \u043D\u0430 \u043F\u0430\u0443\u0437\u0443 \u0438\u0437 \u0440\u0430\u0437\u0434\u0435\u043B\u0430 \xAB\u0422\u0438\u0448\u0438\u043D\u0430 \u0438 \u043A\u043B\u0430\u0432\u0438\u0448\u0438\xBB. \u0412\u044B\u043A\u043B\u044E\u0447\u0438\u0442\u0435, \u0447\u0442\u043E\u0431\u044B \u043E\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u0442\u044C \u0442\u043E\u043B\u044C\u043A\u043E \u0432\u0440\u0443\u0447\u043D\u0443\u044E.",
+            children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+              Check,
+              {
+                checked: settings.live.autoStop,
+                onChange: (value) => update((current2) => ({ ...current2, live: { ...current2.live, autoStop: value } }))
+              }
+            )
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "vs-hint", children: "\u0420\u0435\u0436\u0438\u043C \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u0441 \u043B\u044E\u0431\u044B\u043C \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u043E\u043C: \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0439 Whisper \u0438 \u043E\u0431\u043B\u0430\u043A\u043E \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u044E\u0442 \u043A\u043E\u0440\u043E\u0442\u043A\u0438\u0435 \u043A\u0443\u0441\u043A\u0438. \u0422\u0435\u043A\u0441\u0442 \u0432\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0441\u0430\u043C, \u043A\u043D\u043E\u043F\u043A\u0438 \xAB\u0412\u0441\u0442\u0430\u0432\u0438\u0442\u044C\xBB \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435\u0442. \u041E\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u044C \u043C\u043E\u0436\u043D\u043E \u043A\u043D\u043E\u043F\u043A\u043E\u0439, Esc \u0438\u043B\u0438 Push-to-talk \u2014 \u043B\u0438\u0431\u043E \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043F\u043E \u0442\u0438\u0448\u0438\u043D\u0435." })
       ] }) : null
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { className: "vs-section", open: true, children: [
@@ -3667,7 +3652,7 @@ function SettingsPage(props) {
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "\u041C\u0438\u043A\u0440\u043E\u0444\u043E\u043D: \u0432\u044B\u0431\u0440\u0430\u043D\u043D\u043E\u0435 \u0443\u0441\u0442\u0440\u043E\u0439\u0441\u0442\u0432\u043E \u2192 \xAB\u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438\xBB." }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "\u0428\u0443\u043C\u043E\u043F\u043E\u0434\u0430\u0432\u043B\u0435\u043D\u0438\u0435: RNNoise \u0438 \u0435\u0433\u043E \u0441\u0438\u043B\u0430, \u043E\u0431\u0440\u0435\u0437\u043D\u043E\u0439 \u0444\u0438\u043B\u044C\u0442\u0440, \u0448\u0443\u043C\u043E\u0432\u043E\u0439 \u0433\u0435\u0439\u0442, \u0444\u0438\u043B\u044C\u0442\u0440\u044B \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430." }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "\u041E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0430 \u0437\u0432\u0443\u043A\u0430: \u0432\u0445\u043E\u0434\u043D\u043E\u0435 \u0443\u0441\u0438\u043B\u0435\u043D\u0438\u0435, \u0410\u0420\u0423 \u0438 \u0435\u0451 \u043F\u0440\u0435\u0434\u0435\u043B\u044B, \u0437\u0430\u0449\u0438\u0442\u0430 \u043E\u0442 \u043F\u0435\u0440\u0435\u0433\u0440\u0443\u0437\u043A\u0438, \u043F\u043E\u0440\u043E\u0433\u0438 \u0433\u0435\u0439\u0442\u0430." }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "\u0420\u0435\u0436\u0438\u043C \u0434\u0438\u043A\u0442\u043E\u0432\u043A\u0438: \xAB\u043F\u043E \u043A\u043D\u043E\u043F\u043A\u0435\xBB, \u043C\u0430\u043A\u0441\u0438\u043C\u0443\u043C \u0444\u0440\u0430\u0437\u044B \u0438 \u043F\u0430\u0443\u0437\u0430 \u0434\u043B\u044F \u0432\u0441\u0442\u0430\u0432\u043A\u0438 \u0432 \u0436\u0438\u0432\u043E\u043C \u0440\u0435\u0436\u0438\u043C\u0435." }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "\u0420\u0435\u0436\u0438\u043C \u0434\u0438\u043A\u0442\u043E\u0432\u043A\u0438: \xAB\u043F\u043E \u043A\u043D\u043E\u043F\u043A\u0435\xBB, \u043C\u0430\u043A\u0441\u0438\u043C\u0443\u043C \u0444\u0440\u0430\u0437\u044B, \u043F\u0430\u0443\u0437\u0430 \u0434\u043B\u044F \u0432\u0441\u0442\u0430\u0432\u043A\u0438 \u0438 \u0430\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E \u0442\u0438\u0448\u0438\u043D\u0435." }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "\u0422\u0438\u0448\u0438\u043D\u0430 \u0438 \u043A\u043B\u0430\u0432\u0438\u0448\u0438: \u0430\u0432\u0442\u043E-\u0441\u0442\u043E\u043F \u043F\u043E \u0442\u0438\u0448\u0438\u043D\u0435, \u043F\u0430\u0443\u0437\u0430, \u043F\u043E\u0440\u043E\u0433, Push-to-talk \u0438 \u0441\u043E\u0447\u0435\u0442\u0430\u043D\u0438\u0435 \u043A\u043B\u0430\u0432\u0438\u0448." }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "\u0422\u0435\u043A\u0441\u0442: \u0430\u0432\u0442\u043E-\u043F\u0443\u043D\u043A\u0442\u0443\u0430\u0446\u0438\u044F, \u0443\u0434\u0430\u043B\u0435\u043D\u0438\u0435 \u0441\u043B\u043E\u0432-\u0437\u0430\u0438\u043A\u0430\u043D\u0438\u0439 \u0438 \u0432\u0435\u0441\u044C \u0441\u043B\u043E\u0432\u0430\u0440\u044C \u0437\u0430\u043C\u0435\u043D." })
         ] }),
