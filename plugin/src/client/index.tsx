@@ -1228,7 +1228,11 @@ function MicActivity(props: ActivityProps) {
         <button
           type="button"
           className="vs-trigger"
-          title={usable ? 'Голосовой ввод · правый клик — настройки' : 'Голосовой ввод: настройте распознавание'}
+          title={
+            usable
+              ? 'Голосовой ввод · удержание — быстрое меню, правый клик — настройки'
+              : 'Голосовой ввод: настройте распознавание · удержание — быстрое меню, правый клик — настройки'
+          }
           aria-label="Голосовой ввод"
           aria-haspopup="menu"
           aria-expanded={quickOpen}
@@ -1253,11 +1257,10 @@ function MicActivity(props: ActivityProps) {
           }}
           onContextMenu={(event) => {
             event.preventDefault()
-            if (holdFiredRef.current) {
-              holdFiredRef.current = false
-              return
-            }
-            openQuick(event.clientX, event.clientY)
+            endHold()
+            holdFiredRef.current = false
+            setQuickOpen(false)
+            voiceStudio.openSettings()
           }}
         >
           <IconMic />

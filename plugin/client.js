@@ -2505,7 +2505,7 @@ function MicActivity(props) {
         {
           type: "button",
           className: "vs-trigger",
-          title: usable ? "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434 \xB7 \u043F\u0440\u0430\u0432\u044B\u0439 \u043A\u043B\u0438\u043A \u2014 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438" : "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434: \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435",
+          title: usable ? "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434 \xB7 \u0443\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435 \u2014 \u0431\u044B\u0441\u0442\u0440\u043E\u0435 \u043C\u0435\u043D\u044E, \u043F\u0440\u0430\u0432\u044B\u0439 \u043A\u043B\u0438\u043A \u2014 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438" : "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434: \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u0432\u0430\u043D\u0438\u0435 \xB7 \u0443\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435 \u2014 \u0431\u044B\u0441\u0442\u0440\u043E\u0435 \u043C\u0435\u043D\u044E, \u043F\u0440\u0430\u0432\u044B\u0439 \u043A\u043B\u0438\u043A \u2014 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
           "aria-label": "\u0413\u043E\u043B\u043E\u0441\u043E\u0432\u043E\u0439 \u0432\u0432\u043E\u0434",
           "aria-haspopup": "menu",
           "aria-expanded": quickOpen,
@@ -2530,11 +2530,10 @@ function MicActivity(props) {
           },
           onContextMenu: (event) => {
             event.preventDefault();
-            if (holdFiredRef.current) {
-              holdFiredRef.current = false;
-              return;
-            }
-            openQuick(event.clientX, event.clientY);
+            endHold();
+            holdFiredRef.current = false;
+            setQuickOpen(false);
+            voiceStudio.openSettings();
           },
           children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconMic, {})
         }

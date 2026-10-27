@@ -98,7 +98,15 @@ const slots = {
 }
 
 const speech = {
-  catalog: async () => ({ ok: true, value: { providers: [], selection: { providerId: '', language: 'auto' }, maxAudioBytes: 1, maxDurationSeconds: 1 } }),
+  catalog: async () => ({
+    ok: true,
+    value: {
+      providers: [{ id: 'whisper-base', name: 'Whisper base', location: 'host-local', languages: ['auto', 'ru'], preparation: { phase: 'ready' } }],
+      selection: { providerId: 'whisper-base', language: 'ru' },
+      maxAudioBytes: 1,
+      maxDurationSeconds: 1,
+    },
+  }),
   configure: async () => ({ ok: true }),
   prepare: async () => ({ ok: true }),
   transcribe: async () => ({ ok: true, value: { text: 'ok', audioSeconds: 1 } }),
@@ -153,6 +161,8 @@ if (!micHtml.includes('aria-haspopup="menu"')) throw new Error('microphone must 
 if (!micHtml.includes('aria-label="Режим: в реальном времени"')) throw new Error('the mode badge must show the live mode')
 if (!micHtml.includes('aria-expanded="false"')) throw new Error('quick menu must start closed')
 if (micHtml.includes('aria-expanded="true"')) throw new Error('quick menu opened by default')
+if (!micHtml.includes('удержание — быстрое меню')) throw new Error('the trigger must document the hold gesture')
+if (!micHtml.includes('правый клик — настройки')) throw new Error('the trigger must document the right-click settings')
 
 const settings = registered.find((item) => item.options?.name === 'plugins.bundle.config')
 const settingsHtml = renderToString(
