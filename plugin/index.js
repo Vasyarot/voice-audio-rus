@@ -224,6 +224,11 @@ export function createProvider(config, ctx) {
         throw new Error(`Voice Audio Rus: запрос к ${baseURL} не удался — ${error instanceof Error ? error.message : String(error)}`)
       }
       if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(
+            `Voice Audio Rus: у ${baseURL} нет /audio/transcriptions (404) — этот сервис не умеет распознавать речь. Выберите локальный Whisper или OpenAI-совместимый сервер.`,
+          )
+        }
         const detail = await response.text().catch(() => '')
         throw new Error(`Voice Audio Rus: сервер вернул ${response.status}${detail ? ` — ${detail.slice(0, 300)}` : ''}`)
       }

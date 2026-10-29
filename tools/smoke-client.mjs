@@ -190,6 +190,12 @@ for (const gone of ['История диктовок', 'Экспорт .md', 'П
 }
 if (settingsHtml.includes('Облачный провайдер')) throw new Error('duplicated cloud section is still rendered')
 if (!settingsHtml.includes('Вернуть настройки по умолчанию')) throw new Error('reset button is missing')
+for (const marker of ['Устройство ввода', 'Тест микрофона']) {
+  if (!settingsHtml.includes(marker)) throw new Error(`microphone section missing: ${marker}`)
+}
+for (const gone of ['Аккаунт DeepSeek', 'Включить без ключа']) {
+  if (settingsHtml.includes(gone)) throw new Error(`account row must be gone: ${gone}`)
+}
 if (settingsHtml.includes('Да, сбросить')) throw new Error('reset confirmation must stay closed until asked')
 if (settingsHtml.includes('margin:6px 0 12px')) throw new Error('settings rows must not override the shared gap')
 for (const marker of ['В реальном времени', 'По кнопке', 'Максимум фразы', 'Пауза для вставки']) {
@@ -238,10 +244,10 @@ const panelHtml = renderToString(
     onClose() {},
   }),
 )
-for (const marker of ['Модель распознавания', 'Облачная модель', 'Подтянуть модели', 'Все настройки']) {
+for (const marker of ['Модель распознавания', 'Облачная модель', 'Подтянуть модели', 'Все настройки', 'Микрофон', 'Автоматически (системный)', 'Проверить']) {
   if (!panelHtml.includes(marker)) throw new Error(`quick panel missing: ${marker}`)
 }
-for (const duplicated of ['По кнопке', 'В реальном времени', 'Записать', 'Режим', 'vs-quick-label">Микрофон']) {
+for (const duplicated of ['По кнопке', 'В реальном времени', 'Записать', 'Режим диктовки']) {
   if (panelHtml.includes(duplicated)) throw new Error(`quick panel duplicates a control: ${duplicated}`)
 }
 if (!panelHtml.includes('★ лучшая для речи')) throw new Error('quick panel must mark the recommended model')

@@ -367,6 +367,117 @@ export function QuickSettings(props: QuickProps) {
   const pullingRef = useRef(false)
   const best = useMemo(() => recommendModel(models), [models])
 
+  // ---- микрофон: выбор устройства и проверка прямо из меню ----
+  const [devices, setDevices] = useState<AudioDevice[]>([])
+  const [deviceError, setDeviceError] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [checkText, setCheckText] = useState<string | null>(null)
+  const [checkKind, setCheckKind] = useState<'ok' | 'error' | 'pending'>('pending')
+  const meterRef = useRef<HTMLSpanElement | null>(null)
+  const checkStopRef = useRef<(() => void) | null>(null)
+
+  const refreshDevices = useCallback(async () => {
+    try {
+      setDevices(await listInputDevices())
+      setDeviceError(null)
+    } catch (failure) {
+      setDeviceError(describeFailure(failure))
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshDevices()
+  }, [refreshDevices])
+
+  useEffect(
+    () => () => {
+      checkStopRef.current?.()
+    },
+    [],
+  )
+
+  const grantAccess = async () => {
+    try {
+      await requestMicrophonePermission()
+      await refreshDevices()
+      setDeviceError(null)
+    } catch (failure) {
+      setDeviceError(describeFailure(failure))
+    }
+  }
+
+  const chooseDevice = (id: string) => {
+    const found = devices.find((device) => device.id === id)
+    updateSettings((current) => ({ ...current, deviceId: id, deviceLabel: found?.label ?? '' }))
+    setCheckText(null)
+  }
+
+  const stopCheck = () => {
+    const stop = checkStopRef.current
+    checkStopRef.current = null
+    setChecking(false)
+    stop?.()
+  }
+
+  /** Три секунды слушаем выбранный микрофон и говорим, слышно его или нет. */
+  const runCheck = async () => {
+    stopCheck()
+    setCheckKind('pending')
+    setCheckText('Слушаю 3 секунды…')
+    setChecking(true)
+    let stream: MediaStream | null = null
+    let audio: AudioContext | null = null
+    let frame = 0
+    let timer = 0
+    let peak = -100
+    let finished = false
+    const finish = (text: string, kind: 'ok' | 'error') => {
+      if (finished) return
+      finished = true
+      window.clearTimeout(timer)
+      cancelAnimationFrame(frame)
+      for (const track of stream?.getTracks() ?? []) track.stop()
+      void audio?.close().catch(() => {})
+      checkStopRef.current = null
+      if (meterRef.current) meterRef.current.style.width = '0%'
+      setChecking(false)
+      setCheckKind(kind)
+      setCheckText(text)
+    }
+    checkStopRef.current = () => finish('Проверка остановлена.', 'error')
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: settings.deviceId !== '' ? { deviceId: { exact: settings.deviceId } } : true,
+        video: false,
+      })
+      audio = new AudioContext()
+      const source = audio.createMediaStreamSource(stream)
+      const analyser = audio.createAnalyser()
+      analyser.fftSize = 2048
+      source.connect(analyser)
+      const data = new Float32Array(analyser.fftSize)
+      const loop = () => {
+        analyser.getFloatTimeDomainData(data)
+        let sum = 0
+        for (const value of data) sum += value * value
+        const rms = Math.sqrt(sum / data.length)
+        const db = 20 * Math.log10(Math.max(rms, 1e-6))
+        peak = Math.max(peak, db)
+        if (meterRef.current) meterRef.current.style.width = `${Math.max(0, Math.min(100, ((db + 70) / 60) * 100))}%`
+        frame = requestAnimationFrame(loop)
+      }
+      loop()
+      timer = window.setTimeout(() => {
+        if (peak > -55) finish(`Слышу: пик ${peak.toFixed(0)} дБ`, 'ok')
+        else finish(`Тишина: пик ${peak.toFixed(0)} дБ — микрофон молчит`, 'error')
+      }, 3000)
+    } catch (failure) {
+      finish(describeFailure(failure), 'error')
+    }
+  }
+
+  const labelsHidden = devices.length > 0 && devices.every((device) => /^Микрофон \d+$/u.test(device.label))
+
   useEffect(() => {
     saveCloudDraft(draft)
   }, [draft])
@@ -554,6 +665,47 @@ export function QuickSettings(props: QuickProps) {
           <span className="vs-dot" data-status={statusKind(provider)} />
           {statusFor(provider)}
         </p>
+      </div>
+      <div className="vs-quick-block">
+        <span className="vs-quick-label">Микрофон</span>
+        <select className="vs-select" value={settings.deviceId} onChange={(event) => chooseDevice(event.target.value)}>
+          <option value="">Автоматически (системный)</option>
+          {devices.map((device) => (
+            <option key={device.id} value={device.id}>
+              {device.label}
+            </option>
+          ))}
+        </select>
+        {labelsHidden ? (
+          <button type="button" className="vs-link" onClick={() => void grantAccess()}>
+            Разрешить доступ к микрофону
+          </button>
+        ) : null}
+        {deviceError ? (
+          <p className="vs-hint" data-status="error">
+            {deviceError}
+          </p>
+        ) : null}
+        <div className="vs-controls">
+          <button type="button" className="vs-btn" disabled={checking} onClick={() => void runCheck()}>
+            {checking ? 'Слушаю…' : 'Проверить'}
+          </button>
+          {checking ? (
+            <button type="button" className="vs-btn" onClick={stopCheck}>
+              Стоп
+            </button>
+          ) : null}
+          {checkText ? (
+            <span className="vs-hint" data-status={checkKind}>
+              {checkText}
+            </span>
+          ) : null}
+        </div>
+        {checking ? (
+          <div className="vs-live-meter">
+            <span ref={meterRef} style={{ width: '0%' }} />
+          </div>
+        ) : null}
       </div>
       {isCloud ? (
         <div className="vs-quick-block">
