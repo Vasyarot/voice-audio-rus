@@ -32,12 +32,30 @@
 
 ## Установка
 
+**Из репозитория (рекомендуется):**
+
 ```powershell
-dsh plugin --profile desktop add "file:D:\Project\DeepSeek Harness\Voice\plugin"
+git clone https://github.com/Vasyarot/voice-audio-rus.git
+cd voice-audio-rus
+.\install.ps1
 ```
 
-CLI сам добавляет пакет и бандл в профиль. После установки **перезапустите DSH**.
-Откат: `dsh plugin --profile desktop remove dsh-plugin-voice-studio`.
+Скрипт скачивает архив `Vasyarot/voice-audio-rus`, ставит пакет из `plugin/` в профиль и
+добавляет бандл. Параметры: `-Profile <имя>`, `-Copy` (копировать файлы вместо симлинка —
+нужно для desktop-профиля), `-Version <ветка|тег>` (по умолчанию `main`).
+Справка: `.\install.ps1 -?`.
+
+**Вручную:** скачайте zip репозитория, распакуйте и добавьте папку `plugin`:
+
+```powershell
+dsh plugin --profile web add "file:<путь>\voice-audio-rus\plugin"
+```
+
+Desktop-профиль ставится через «Настройки → Плагины»: CLI этим профилем не управляет
+(`profile "desktop" is managed exclusively by the Electron application`).
+
+Откат: `dsh plugin --profile web remove dsh-plugin-voice-studio`. После установки
+**перезапустите DSH**.
 
 > Не включайте одновременно официальный `@deepseek-ai/dsh-experimental-voice-input-bundle`.
 
