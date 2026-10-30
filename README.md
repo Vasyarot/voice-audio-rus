@@ -12,7 +12,7 @@
 
 <p align="center">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-3fb950" />
-  <img alt="version" src="https://img.shields.io/badge/version-0.4.0-2f6bff" />
+  <img alt="version" src="https://img.shields.io/badge/version-0.5.0-2f6bff" />
   <img alt="lang" src="https://img.shields.io/badge/язык-русский%20приоритет-7b3ff2" />
   <img alt="stt" src="https://img.shields.io/badge/STT-Whisper%20%7C%20OpenAI--compatible-0f1115" />
   <img alt="offline" src="https://img.shields.io/badge/offline-yes-3fb950" />
@@ -31,6 +31,10 @@
 Плагин к DSH (Cordis-бандл: хост-часть + web-клиент), который добавляет диктовку
 в композер и полный контроль над звуком. Рассчитан в первую очередь на русскую речь:
 по умолчанию включены русский язык и локальная модель Whisper.
+
+Совместим с DSH **0.2.1-rc.5** и новее: контракт `speechToText`, Remote-схемы
+(`speech/catalog`, `speech/prepare`, `speech/transcribe`) и слоты
+`conversation.input.activity` / `plugins.bundle.config` проверены на этом релизе.
 
 - кнопка микрофона в поле ввода → запись → распознавание → вставка текста
   с проверкой ревизии черновика;
