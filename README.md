@@ -32,7 +32,7 @@
 в композер и полный контроль над звуком. Рассчитан в первую очередь на русскую речь:
 по умолчанию включены русский язык и локальная модель Whisper.
 
-Совместим с DSH **0.2.1-rc.5** и новее: контракт `speechToText`, Remote-схемы
+Совместим с DSH **0.2.1-rc.5** (линейка 0.2.x): контракт `speechToText`, Remote-схемы
 (`speech/catalog`, `speech/prepare`, `speech/transcribe`) и слоты
 `conversation.input.activity` / `plugins.bundle.config` проверены на этом релизе.
 
